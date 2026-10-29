@@ -1,0 +1,15 @@
+node_modules/
+.wwebjs_auth/
+.wwebjs_cache/
+data/
+uploads/
+scratch/
+.env
+.env.*
+!.env.example
+*.log
+coverage/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,28 @@
+# Node modules — never copy into the image
+node_modules/
+
+# WhatsApp session — injected via Docker volume
+.wwebjs_auth/
+
+# Runtime data — injected via Docker volume
+data/
+uploads/
+
+# Dev tooling
+nodemon.json
+.env
+*.log
+
+# Git
+.git/
+.gitignore
+
+# Editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS artifacts
+.DS_Store
+Thumbs.db

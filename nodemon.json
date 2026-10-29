@@ -1,0 +1,6 @@
+{
+  "watch": ["server.js", "core", "routes", "plugins"],
+  "ignore": ["data/*", "uploads/*", "public/*", ".wwebjs_auth/*", "node_modules/*"],
+  "ext": "js,json",
+  "delay": 500
+}

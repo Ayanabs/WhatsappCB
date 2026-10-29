@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#087e68" />
+  <meta name="description" content="Your workspace for WhatsApp countdowns, scheduled messages, and group automation." />
+  <title>Relay — WhatsApp Automation</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Config: exposes window.WABOT_API (API server origin) -->
+  <script src="/config.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5A8.5 8.5 0 0 1 10.5 3h2a8.5 8.5 0 0 1 8.5 8.5Z"/><path d="M7 10h9M7 14h6"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4M17 3v4M3 11h18M8 15h2M14 15h2"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m7 9 3 3-3 3M13 15h4"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M21 21v-3a6 6 0 0 0-3-5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M2 12h5l3-8 4 16 3-8h5"/></symbol>
+  </svg>
+
+  <aside class="sidebar" aria-label="Workspace navigation">
+    <a class="brand" href="#main-content" data-overview>
+      <span class="brand__mark"><svg class="icon"><use href="#i-message"/></svg></span>
+      <span><strong>relay<span class="brand__dot">.</span></strong><small>WHATSAPP AUTOMATION</small></span>
+    </a>
+    <div class="sidebar__workspace"><span class="workspace-avatar">W</span><div><strong>My workspace</strong><small>Local automation</small></div><span class="workspace-chevron">⌄</span></div>
+    <p class="nav-label">WORKSPACE</p>
+    <nav class="sidebar__nav" aria-label="Main navigation">
+      <button class="nav-link is-active" type="button" data-overview aria-current="page"><svg class="icon"><use href="#i-grid"/></svg>Overview</button>
+      <button class="nav-link" type="button" data-nav-service="dispatch"><svg class="icon"><use href="#i-message"/></svg>Send a message</button>
+      <button class="nav-link" type="button" data-nav-service="countdown"><svg class="icon"><use href="#i-clock"/></svg>Countdown</button>
+      <button class="nav-link" type="button" data-nav-service="posts"><svg class="icon"><use href="#i-calendar"/></svg>Scheduled posts<span class="nav-count" id="nav-post-count">0</span></button>
+      <button class="nav-link" type="button" data-nav-service="alarms"><svg class="icon"><use href="#i-bell"/></svg>Daily alarms</button>
+      <button class="nav-link" type="button" data-nav-service="commands"><svg class="icon"><use href="#i-terminal"/></svg>Bot commands</button>
+    </nav>
+    <p class="nav-label">MONITOR</p>
+    <a class="nav-link" href="#activity-section"><svg class="icon"><use href="#i-activity"/></svg>Activity log</a>
+    <div class="sidebar__bottom">
+      <div class="sidebar-tip"><svg class="icon"><use href="#i-message"/></svg><strong>Set it. Send it. Stay connected.</strong><p>Your messages, right on time. Keep this app running for automations to send.</p></div>
+      <div class="sidebar-connection"><span class="status-dot" id="sidebar-status-dot"></span><span id="sidebar-status-text">WhatsApp disconnected</span></div>
+      <small class="sidebar-version">Relay / Local workspace</small>
+    </div>
+  </aside>
+
+  <!-- HEADER -->
+  <header class="hud-header">
+    <div class="header-breadcrumb">Workspace <span>/</span> <strong id="breadcrumb-current">Overview</strong></div>
+    <div class="hud-header__status-bar">
+      <div id="wa-status-badge" class="status-badge status-badge--offline">
+        <span class="status-dot"></span>
+        <span id="wa-status-text">Disconnected</span>
+      </div>
+      <button id="btn-logout" class="btn btn--danger btn--sm" title="Revoke WhatsApp session">
+        Log Out
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN GRID -->
+  <main class="hud-grid" id="main-content" tabindex="-1">
+    <div class="page-heading">
+      <div><p class="eyebrow">YOUR MESSAGING WORKSPACE</p><h1 id="page-title">A little planning. A lot of connection.</h1><p id="page-description">Manage your groups and let your messages take care of themselves.</p></div>
+      <button class="btn btn--primary" type="button" data-add-group><svg class="icon"><use href="#i-plus"/></svg>Add a group</button>
+    </div>
+
+    <section class="dashboard-overview" aria-label="Workspace overview">
+      <div class="overview-top">
+        <article class="event-hero">
+          <div class="event-hero__content">
+            <div class="event-hero__eyebrow"><span class="status-dot"></span>YOUR NEXT BIG MOMENT<span id="overview-countdown-status" class="hero-badge">Not configured</span></div>
+            <h2 id="overview-event-title">Make every moment count.</h2>
+            <p class="event-hero__date" id="overview-event-date">Create a countdown your group can look forward to.</p>
+            <div class="countdown-digits" aria-label="Time remaining">
+              <div><strong id="overview-days">00</strong><span>DAYS</span></div><b>:</b>
+              <div><strong id="overview-hours">00</strong><span>HOURS</span></div><b>:</b>
+              <div><strong id="overview-minutes">00</strong><span>MINUTES</span></div><b>:</b>
+              <div><strong id="overview-seconds">00</strong><span>SECONDS</span></div>
+            </div>
+            <button class="btn btn--hero" type="button" data-nav-service="countdown">Manage countdown<svg class="icon"><use href="#i-arrow"/></svg></button>
+            <p class="hero-note" id="overview-countdown-note">Add an event, attach a poster, and share the excitement.</p>
+          </div>
+          <div class="event-hero__art" aria-hidden="true"><div class="orbit orbit--one"></div><div class="orbit orbit--two"></div><div class="hero-calendar"><svg class="icon"><use href="#i-calendar"/></svg><span>Something<br/>to look forward to.</span><div class="calendar-dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><span class="art-spark art-spark--one">+</span><span class="art-spark art-spark--two">+</span></div>
+        </article>
+        <article class="connection-card">
+          <div class="connection-card__top"><span class="connection-icon"><svg class="icon"><use href="#i-message"/></svg></span><span class="connection-label" id="overview-connection-label">Not connected</span></div>
+          <h2>Your WhatsApp,<br/>ready to work.</h2>
+          <p id="overview-connection-description">Link your account to start sending messages and running your automations.</p>
+          <div class="connection-steps"><span>1</span>Open WhatsApp on your phone<br/><span>2</span>Go to Linked devices<br/><span>3</span>Scan your connection QR code</div>
+          <button class="btn btn--secondary" id="btn-connection" type="button">Connection details<svg class="icon"><use href="#i-arrow"/></svg></button>
+        </article>
+      </div>
+      <div class="metrics-row">
+        <article class="metric"><span class="metric__icon"><svg class="icon"><use href="#i-users"/></svg></span><div><span class="metric__label">Target groups</span><strong id="metric-groups">0</strong></div><span class="metric__detail">Configured audiences</span></article>
+        <article class="metric"><span class="metric__icon metric__icon--blue"><svg class="icon"><use href="#i-calendar"/></svg></span><div><span class="metric__label">Scheduled posts</span><strong id="metric-posts">0</strong></div><span class="metric__detail" id="metric-posts-detail">Waiting to be sent</span></article>
+        <article class="metric"><span class="metric__icon metric__icon--amber"><svg class="icon"><use href="#i-bell"/></svg></span><div><span class="metric__label">Daily alarms</span><strong id="metric-alarms">0</strong></div><span class="metric__detail">Active reminders</span></article>
+      </div>
+    </section>
+
+    <!-- QR / Auth Panel (shown only when unauthenticated) -->
+    <section id="qr-panel" class="card card--full hidden">
+      <div class="card__header">
+        <span class="card__tag">[AUTH]</span>
+        <h2>Authenticate WhatsApp</h2>
+      </div>
+      <div class="card__body qr-body">
+        <p class="qr-instructions">Scan this QR code in WhatsApp: <strong>Linked Devices &gt; Link a Device</strong></p>
+        <div id="qr-container" class="qr-container">
+          <div class="qr-spinner">Waiting for QR code...</div>
+        </div>
+        <p class="qr-note">The QR code is also streamed to the terminal console.</p>
+      </div>
+    </section>
+
+    <!-- Target Groups Selector (Supports Multiple Groups) -->
+    <details class="card card--full group-configuration" id="group-configuration">
+      <summary class="card__header">
+        <svg class="icon"><use href="#i-plus"/></svg>
+        <h2>Add a target group</h2><span class="field-hint-inline ml-auto">Choose a chat or enter its name</span><span class="details-chevron">⌄</span>
+      </summary>
+      <div class="card__body">
+        <p class="field-hint mb-sm">Messages and countdowns broadcast to all groups listed below.</p>
+
+        <div class="sub-card">
+          <div class="form-row">
+            <div class="form-col">
+              <label class="field-label" for="group-name-input">Add Group Name</label>
+              <input
+                id="group-name-input"
+                class="field-input"
+                type="text"
+                placeholder="Enter exact group chat name..."
+                autocomplete="off"
+              />
+            </div>
+            <div class="form-col">
+              <div class="field-label-row">
+                <label class="field-label" for="group-detected-select">Or Select from Active Chats</label>
+                <label class="checkbox-label" title="Show only groups where your connected account has an admin role">
+                  <input type="checkbox" id="filter-admin-only" />
+                  <span>Admin Groups Only</span>
+                </label>
+              </div>
+              <div class="select-with-btn">
+                <select id="group-detected-select" class="field-input">
+                  <option value="">-- Detected WhatsApp Groups --</option>
+                </select>
+                <button id="btn-refresh-groups" class="btn btn--secondary btn--sm" type="button" title="Fetch groups from WhatsApp">
+                  Refresh
+                </button>
+              </div>
+            </div>
+          </div>
+          <button id="btn-add-group" class="btn btn--primary mt-sm">Add to Target Groups</button>
+        </div>
+
+        <div id="target-groups-list" class="hidden"></div>
+      </div>
+    </details>
+
+    <!-- Target Groups Master Section -->
+    <section class="card card--full" id="target-groups-master-section">
+      <!-- 1. Groups Overview Grid -->
+      <div id="groups-list-view">
+        <div class="card__header">
+          <svg class="icon"><use href="#i-users"/></svg>
+          <h2>Your groups</h2>
+          <span class="field-hint-inline ml-auto" id="target-groups-count">0 Groups Configured</span>
+        </div>
+        <div class="card__body">
+          <div id="target-groups-cards-container" class="group-tiles-grid">
+            <div class="empty-group-prompt" id="no-groups-hint">
+              <span class="card__tag">[STANDBY]</span>
+              <h3>No Target Groups Configured</h3>
+              <p>Add or select a WhatsApp group above to create its card.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Inside the Group Workspace (Shown when a group card is pressed) -->
+      <div id="group-workspace-view" class="hidden">
+        <div class="card__header">
+          <button id="btn-back-to-groups" class="btn btn--secondary btn--sm" type="button">
+            &larr; Back to All Groups
+          </button>
+          <div class="group-workspace-title ml-sm">
+            <span class="card__tag">[ACTIVE GROUP]</span>
+            <h2 id="workspace-group-name">None</h2>
+          </div>
+          <div class="group-workspace-actions ml-auto">
+            <button id="btn-workspace-remove-group" class="btn btn--danger btn--sm" type="button" title="Remove this target group">Remove Group</button>
+          </div>
+        </div>
+
+        <div class="card__body">
+          <!-- Horizontal Row of Independent Service Cards (Left to Right) -->
+          <div class="service-cards-row-wrapper">
+            <div class="service-cards-row" role="tablist" aria-label="Automation services">
+              <div class="service-card is-selected" data-service="dispatch">
+                <div class="service-card__tag">[DISPATCH]</div>
+                <h4 class="service-card__title">Send a message</h4>
+                <div class="service-card__desc">Instant test message delivery</div>
+                <span class="service-card__status">Ready</span>
+              </div>
+
+              <div class="service-card" data-service="countdown">
+                <div class="service-card__tag">[COUNTDOWN]</div>
+                <h4 class="service-card__title">Countdown Bot</h4>
+                <div class="service-card__desc">Count down to your next event</div>
+                <span class="service-card__status" id="countdown-card-status">Not configured</span>
+              </div>
+
+              <div class="service-card" data-service="posts">
+                <div class="service-card__tag">[POSTS]</div>
+                <h4 class="service-card__title">Scheduled Posts</h4>
+                <div class="service-card__desc">Timed media &amp; messages</div>
+                <span class="service-card__status" id="posts-card-status">0 Queued</span>
+              </div>
+
+              <div class="service-card" data-service="alarms">
+                <div class="service-card__tag">[ALARMS]</div>
+                <h4 class="service-card__title">Daily Alarms</h4>
+                <div class="service-card__desc">Recurring HH:MM reminders</div>
+                <span class="service-card__status" id="alarms-card-status">0 Configured</span>
+              </div>
+
+              <div class="service-card" data-service="commands">
+                <div class="service-card__tag">[COMMANDS]</div>
+                <h4 class="service-card__title">Bot Commands</h4>
+                <div class="service-card__desc">Interactive chat triggers</div>
+                <span class="service-card__status" id="commands-card-status">Not configured</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Configuration Panel for the Selected Service -->
+          <div class="service-config-panel">
+            <p class="shared-settings-note">Shared automation settings: countdowns, scheduled posts, alarms, and bot commands apply to all configured target groups. Direct messages use the recipient you select.</p>
+
+            <!-- 1. Test Message / Direct Dispatcher -->
+            <div id="service-view-dispatch" class="service-config-view is-active">
+              <div class="card card--service">
+                <div class="card__header">
+                  <span class="card__tag">[DISPATCH]</span>
+                  <h2>Send a message</h2>
+                </div>
+                <div class="card__body">
+                  <p class="field-hint mb-sm">Send an instant test message directly to verify group delivery.</p>
+
+                  <div class="sub-card">
+                    <label class="field-label" for="test-target-select">Recipient Target</label>
+                    <select id="test-target-select" class="field-input">
+                      <option value="__ALL__">All Configured Target Groups</option>
+                    </select>
+
+                    <label class="field-label mt-sm" for="test-message">Message Text</label>
+                    <textarea
+                      id="test-message"
+                      class="field-textarea"
+                      rows="2"
+                      placeholder="Type your test message here..."
+                    ></textarea>
+
+                    <label class="field-label mt-sm" for="test-media">Optional Media Attachment (Video / Image / Audio)</label>
+                    <div class="media-upload-area" id="test-media-area">
+                      <input id="test-media" class="media-file-input" type="file" accept="video/*,image/*,audio/*" />
+                      <label for="test-media" class="media-upload-label">
+                        <span id="test-media-name">Choose file or drag &amp; drop</span>
+                      </label>
+                      <div id="test-media-preview" class="media-preview hidden"></div>
+                      <button id="test-media-clear" class="btn btn--ghost btn--sm hidden" type="button">Remove</button>
+                    </div>
+
+                    <div class="action-row mt-sm">
+                      <button id="btn-send-test" class="btn btn--primary">Send Test Message Now</button>
+                      <span id="test-send-status" class="field-hint-inline"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Countdown Bot Module -->
+            <div id="service-view-countdown" class="service-config-view">
+              <div class="card card--service">
+                <div class="card__header">
+                  <span class="card__tag">[COUNTDOWN]</span>
+                  <h2>Countdown Bot</h2>
+                  <label class="toggle ml-auto" title="Enable or disable countdown broadcasts">
+                    <input id="countdown-enabled" type="checkbox" aria-label="Enable countdown broadcasts" />
+                    <span class="toggle__slider"></span>
+                  </label>
+                </div>
+                <div class="card__body countdown-editor">
+                  <div class="countdown-fields">
+                  <div class="form-row">
+                    <div class="form-col">
+                      <label class="field-label" for="countdown-start-date">Start Date &amp; Time (Sri Lanka)</label>
+                      <input id="countdown-start-date" class="field-input" type="datetime-local" />
+                      <p class="field-hint">Daily publishing starts at the first scheduled time on or after this date.</p>
+                    </div>
+                    <div class="form-col">
+                      <label class="field-label" for="countdown-date">Target / End Date &amp; Time (Sri Lanka)</label>
+                      <input id="countdown-date" class="field-input" type="datetime-local" />
+                      <p class="field-hint">The target deadline when countdown reaches zero.</p>
+                    </div>
+                  </div>
+
+                  <label class="field-label mt-sm" for="countdown-title">Event Title</label>
+                  <p class="shared-settings-note hidden" id="countdown-schedule-hint" role="status"></p>
+                  <input id="countdown-title" class="field-input" type="text" placeholder="e.g. Annual Science Exhibition" />
+
+                  <label class="field-label mt-sm" for="countdown-template">Message Template</label>
+                  <textarea
+                    id="countdown-template"
+                    class="field-textarea"
+                    rows="3"
+                    placeholder="Only {days} days and {hours} hours left."
+                  ></textarea>
+                  <p class="field-hint">Dynamic Tokens: <code>{days}</code> <code>{hours}</code> <code>{minutes}</code> <code>{seconds}</code></p>
+
+                  <label class="field-label mt-sm" for="countdown-daily-time">Daily Publish Time (Sri Lanka)</label>
+                  <input id="countdown-daily-time" class="field-input field-input--sm" type="time" value="09:00" />
+                  <p class="field-hint">The message and poster are sent together once a day until the target date. If today's time has passed when you enable or change the schedule, publishing starts tomorrow.</p>
+
+                  <label class="field-label mt-sm" for="countdown-media">Poster / Flyer Attachment (Optional)</label>
+                  <div class="media-upload-area" id="countdown-media-area">
+                    <input id="countdown-media" class="media-file-input" type="file" accept="image/*,video/*" />
+                    <label for="countdown-media" class="media-upload-label">
+                      <span id="countdown-media-name">Choose poster image or drag &amp; drop</span>
+                    </label>
+                    <div id="countdown-media-preview" class="media-preview hidden"></div>
+                    <button id="countdown-media-clear" class="btn btn--ghost btn--sm hidden" type="button">Remove Poster</button>
+                  </div>
+                  <p class="field-hint">Your poster and countdown are sent together as one message, with the countdown as its caption.</p>
+
+                  <div class="sub-card mt-sm">
+                    <h3 class="sub-card__title">Content for a specific day (optional)</h3>
+                    <p class="field-hint">Save the start and target dates first. Choose any date in that range and set only the fields you want to change. Blank fields use the main title, message and poster.</p>
+                    <label class="field-label" for="countdown-day-date">Date (Sri Lanka)</label>
+                    <input id="countdown-day-date" class="field-input" type="date" />
+                    <label class="field-label mt-sm" for="countdown-day-title">Title for this day</label>
+                    <input id="countdown-day-title" class="field-input" type="text" placeholder="Use main title" />
+                    <label class="field-label mt-sm" for="countdown-day-message">Message for this day</label>
+                    <textarea id="countdown-day-message" class="field-textarea" rows="3" placeholder="Use main message; countdown tokens are supported"></textarea>
+                    <label class="field-label mt-sm" for="countdown-day-media">Image or video for this day</label>
+                    <input id="countdown-day-media" class="field-input" type="file" accept="image/*,video/*" />
+                    <p id="countdown-day-media-name" class="field-hint">Using main poster.</p>
+                    <button id="countdown-day-clear" class="btn btn--ghost btn--sm" type="button">Use main poster</button>
+                    <button id="countdown-day-save" class="btn btn--secondary btn--sm" type="button">Save this day</button>
+                    <p class="field-hint">Each day is saved separately. To remove an override, clear its fields and choose “Use main poster”, then save.</p>
+                  </div>
+                  </div>
+
+                  <div class="countdown-preview" id="countdown-preview" aria-label="Countdown message preview">
+                    <span class="preview-label">MESSAGE PREVIEW</span>
+                    <p class="preview-recipient">WhatsApp · All target groups</p>
+                    <div id="countdown-preview-media" class="media-preview hidden"></div>
+                    <span id="countdown-preview-text" class="preview-text">Your countdown message will appear here.</span>
+                    <span class="preview-footnote">Poster + caption, delivered together.</span>
+                  </div>
+
+                  <div class="action-row mt-sm">
+                    <button id="btn-preview-countdown" class="btn btn--secondary">Preview Output</button>
+                    <button id="btn-save-countdown" class="btn btn--primary">Save Configuration</button>
+                    <button id="btn-broadcast-countdown" class="btn btn--secondary ml-auto" title="Force an immediate countdown broadcast to all target groups">
+                      Broadcast Countdown Now
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Scheduled Posts Module -->
+            <div id="service-view-posts" class="service-config-view">
+              <div class="card card--service">
+                <div class="card__header">
+                  <span class="card__tag">[POSTS]</span>
+                  <h2>Scheduled Posts</h2>
+                </div>
+                <div class="card__body">
+                  <div class="sub-card">
+                    <h3 class="sub-card__title">Create Scheduled Post</h3>
+                    <label class="field-label" for="post-date">Execution Date &amp; Time (Sri Lanka)</label>
+                    <input id="post-date" class="field-input" type="datetime-local" />
+
+                    <label class="field-label mt-sm" for="post-message">Message Content / Caption</label>
+                    <textarea id="post-message" class="field-textarea" rows="3" placeholder="Enter message body..."></textarea>
+
+                    <label class="field-label mt-sm" for="post-media">Media Attachment (Video / Image / Audio - Max 64 MB)</label>
+                    <div class="media-upload-area" id="post-media-area">
+                      <input id="post-media" class="media-file-input" type="file" accept="video/*,image/*,audio/*" />
+                      <label for="post-media" class="media-upload-label">
+                        <span id="post-media-name">Choose file or drag &amp; drop</span>
+                      </label>
+                      <div id="post-media-preview" class="media-preview hidden"></div>
+                      <button id="post-media-clear" class="btn btn--ghost btn--sm hidden" type="button">Remove</button>
+                    </div>
+
+                    <button id="btn-add-post" class="btn btn--primary mt-sm">Schedule Post</button>
+                  </div>
+
+                  <div id="posts-list" class="item-list mt-sm">
+                    <div class="item-list__empty">No scheduled posts queued.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. Daily Alarms Module -->
+            <div id="service-view-alarms" class="service-config-view">
+              <div class="card card--service">
+                <div class="card__header">
+                  <span class="card__tag">[ALARMS]</span>
+                  <h2>Daily Recurring Alarms</h2>
+                </div>
+                <div class="card__body">
+                  <div class="sub-card">
+                    <h3 class="sub-card__title">Create Daily Recurring Alarm</h3>
+                    <label class="field-label" for="alarm-time">Daily Fire Time (HH:MM)</label>
+                    <input id="alarm-time" class="field-input field-input--sm" type="time" />
+
+                    <label class="field-label mt-sm" for="alarm-message">Alarm Message / Caption</label>
+                    <textarea id="alarm-message" class="field-textarea" rows="3" placeholder="Enter recurring daily message..."></textarea>
+
+                    <label class="field-label mt-sm" for="alarm-media">Media Attachment (Video / Image / Audio - Max 64 MB)</label>
+                    <div class="media-upload-area" id="alarm-media-area">
+                      <input id="alarm-media" class="media-file-input" type="file" accept="video/*,image/*,audio/*" />
+                      <label for="alarm-media" class="media-upload-label">
+                        <span id="alarm-media-name">Choose file or drag &amp; drop</span>
+                      </label>
+                      <div id="alarm-media-preview" class="media-preview hidden"></div>
+                      <button id="alarm-media-clear" class="btn btn--ghost btn--sm hidden" type="button">Remove</button>
+                    </div>
+
+                    <button id="btn-add-alarm" class="btn btn--primary mt-sm">Register Daily Alarm</button>
+                  </div>
+
+                  <div id="alarms-list" class="item-list mt-sm">
+                    <div class="item-list__empty">No daily alarms configured.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 5. Interactive Bot Commands Module -->
+            <div id="service-view-commands" class="service-config-view">
+              <div class="card card--service card--full-width">
+                <div class="card__header">
+                  <span class="card__tag">[COMMANDS]</span>
+                  <h2>Interactive In-Group Bot Commands</h2>
+                  <label class="toggle ml-auto" title="Enable or disable interactive in-group bot commands">
+                    <input id="commands-enabled" type="checkbox" aria-label="Enable bot commands" />
+                    <span class="toggle__slider"></span>
+                  </label>
+                </div>
+                <div class="card__body">
+                  <div class="sub-card">
+                    <h3 class="sub-card__title">Global Command Settings</h3>
+                    <div class="form-row">
+                      <div class="form-col">
+                        <label class="field-label" for="command-prefix">Command Prefix</label>
+                        <input id="command-prefix" class="field-input field-input--sm" type="text" maxlength="3" value="!" placeholder="!" />
+                        <p class="field-hint">e.g. <code>!</code>, <code>/</code>, or <code>#</code></p>
+                      </div>
+                      <div class="form-col">
+                        <label class="field-label" for="command-cooldown">Anti-Spam Cooldown (Seconds)</label>
+                        <input id="command-cooldown" class="field-input field-input--sm" type="number" min="0" max="60" value="3" />
+                        <p class="field-hint">Rate limit per command per chat</p>
+                      </div>
+                    </div>
+                    <div class="checkbox-field mt-sm">
+                      <label class="checkbox-label">
+                        <input type="checkbox" id="command-restrict-groups" checked />
+                        <span>Restrict commands to configured Target Groups only</span>
+                      </label>
+                    </div>
+                    <button id="btn-save-command-settings" class="btn btn--secondary mt-sm">Save Command Settings</button>
+                  </div>
+
+                  <div class="sub-card mt-md">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                      <h3 class="sub-card__title" style="margin: 0;">Strict Command Mode (Auto-Delete Non-Commands)</h3>
+                      <span class="hud-header__tag" style="background: var(--color-red);">REQUIRES BOT AS ADMIN</span>
+                    </div>
+                    <p class="field-hint mb-sm">
+                      Enforces a command-only group environment. Any regular message, media, or non-command sent by participants will be automatically deleted for everyone by the bot.
+                    </p>
+                    <div class="checkbox-field">
+                      <label class="checkbox-label" style="color: var(--color-red);">
+                        <input type="checkbox" id="command-strict-mode" />
+                        <span>Enable Strict Command Mode (Auto-Delete non-commands)</span>
+                      </label>
+                    </div>
+                    <div class="checkbox-field mt-sm">
+                      <label class="checkbox-label">
+                        <input type="checkbox" id="command-strict-admins" checked />
+                        <span>Exempt Group Admins from auto-deletion</span>
+                      </label>
+                    </div>
+                    <div class="checkbox-field mt-sm">
+                      <label class="checkbox-label">
+                        <input type="checkbox" id="command-strict-warn" checked />
+                        <span>Send transient warning notice when deleting non-commands</span>
+                      </label>
+                    </div>
+                    <div class="form-row mt-sm">
+                      <div class="form-col">
+                        <label class="field-label" for="command-warning-template">Warning Template</label>
+                        <input id="command-warning-template" class="field-input" type="text" value="[NOTICE] Only bot commands (starting with {prefix}) are allowed in this group." />
+                        <p class="field-hint">Tokens: <code>{name}</code>, <code>{prefix}</code>, <code>{group}</code></p>
+                      </div>
+                      <div class="form-col" style="max-width: 200px;">
+                        <label class="field-label" for="command-warning-autodel">Auto-Delete Warning (Sec)</label>
+                        <input id="command-warning-autodel" class="field-input field-input--sm" type="number" min="0" max="60" value="10" />
+                        <p class="field-hint">0 = keep warning permanently</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="sub-card mt-md">
+                    <h3 class="sub-card__title">Add Custom Command</h3>
+                    <div class="form-row">
+                      <div class="form-col">
+                        <label class="field-label" for="new-cmd-trigger">Trigger Keyword (without prefix)</label>
+                        <input id="new-cmd-trigger" class="field-input" type="text" placeholder="e.g. rules, info, links" />
+                      </div>
+                      <div class="form-col">
+                        <label class="field-label" for="new-cmd-desc">Description</label>
+                        <input id="new-cmd-desc" class="field-input" type="text" placeholder="e.g. Show group rules" />
+                      </div>
+                    </div>
+                    <label class="field-label mt-sm" for="new-cmd-response">Response Message</label>
+                    <textarea id="new-cmd-response" class="field-textarea" rows="2" placeholder="Text to reply with... Dynamic tokens: {name}, {group}, {date}, {time}"></textarea>
+                    <button id="btn-add-command" class="btn btn--primary mt-sm">Add Custom Command</button>
+                  </div>
+
+                  <div class="mt-md">
+                    <h3 class="sub-card__title">Active In-Group Commands</h3>
+                    <p class="field-hint mb-sm">Members can trigger these commands directly inside your WhatsApp group chats.</p>
+                    <div id="commands-list" class="item-list">
+                      <div class="item-list__empty">Loading commands...</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Activity Log -->
+    <section class="card card--full" id="activity-section">
+      <div class="card__header">
+        <svg class="icon"><use href="#i-activity"/></svg>
+        <h2>Recent activity</h2><span class="live-label"><span class="status-dot"></span>Live</span>
+        <button id="btn-clear-log" class="btn btn--ghost btn--sm ml-auto">Clear Log</button>
+      </div>
+      <div class="card__body">
+        <div id="activity-log" class="activity-log" role="log" aria-label="Automation activity">
+          <div class="log-entry log-entry--info">
+            <span class="log-ts"></span>
+            <span class="log-msg">Your workspace is ready. Activity will appear here.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="hud-footer">
+    <span>relay. <span class="footer-separator">/</span> Thoughtful messages. Right on time.</span>
+    <span id="server-time" class="server-time"></span>
+  </footer>
+
+  <dialog id="approval-dialog" aria-labelledby="approval-title">
+    <form id="approval-form" method="dialog">
+      <h2 id="approval-title">Approve this action</h2>
+      <p class="field-hint">Enter your approval password and a fresh code from your authenticator app.</p>
+      <label class="field-label" for="approval-password">Password</label>
+      <input id="approval-password" class="field-input" type="password" autocomplete="current-password" required />
+      <label class="field-label mt-sm" for="approval-code">Authenticator code</label>
+      <input id="approval-code" class="field-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required />
+      <div class="action-row mt-sm">
+        <button id="approval-cancel" type="button" class="btn btn--ghost">Cancel</button>
+        <button type="submit" class="btn btn--primary">Approve</button>
+      </div>
+    </form>
+  </dialog>
+  <!-- Socket.IO client library -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
