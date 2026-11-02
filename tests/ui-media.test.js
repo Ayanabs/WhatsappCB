@@ -375,6 +375,26 @@ test('countdown preview, immediate image broadcast and scheduled image delivery'
     await page.waitForFunction(() => document.querySelectorAll('.countdown-item').length === 1);
   });
 
+  await t.test('posters and SVG templates can be added from the Posters page', async () => {
+    await page.click('.sidebar__nav [data-nav-service="svg-editor"]');
+    assert.equal(await page.$eval('#breadcrumb-current', (el) => el.textContent), 'Posters');
+    const svgFile = path.join(directory, 'banner.svg');
+    await fs.writeFile(svgFile, '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="#163e63"/><text x="20" y="60" fill="#fff">Banner</text></svg>');
+    await (await page.$('#poster-upload-input')).uploadFile(filename, svgFile);
+    await page.click('#btn-poster-upload');
+    await page.waitForFunction(() => /Added 2 files/.test(document.querySelector('#poster-upload-status').textContent));
+    assert.deepEqual(h.db.get('savedPosters').map('name').value(), ['event-poster', 'banner']);
+    // The SVG becomes an editable template and a PNG poster.
+    await fs.access(path.join(directory, 'uploads', 'templates', 'banner.svg'));
+    assert.match(h.db.get('savedPosters[1].filename').value(), /banner\.png$/);
+    await page.waitForFunction(() => [...document.querySelectorAll('#svg-template-select option')].some((o) => o.value === 'banner.svg'));
+    await page.waitForFunction(() => [...document.querySelectorAll('#poster-library-grid .poster-tile__name')].map((el) => el.textContent).includes('banner'));
+    assert.match(await page.$eval('#svg-custom-templates-list', (el) => el.textContent), /banner\.svg/);
+    assert.equal(await page.$eval('#countdown-poster-select', (el) => [...el.options].some((o) => o.textContent.startsWith('banner'))), true);
+    await page.screenshot({ path: path.join(verificationDir, 'posters.png'), fullPage: true });
+    await page.click('.sidebar__nav [data-overview]');
+  });
+
   await t.test('dashboard counts pending work and explains expired events', async () => {
     const state = structuredClone(h.db.getState());
     state.countdowns[0].targetDate = new Date(Date.now() - 86400000).toISOString();

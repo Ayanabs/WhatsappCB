@@ -1861,10 +1861,39 @@ async function loadPosterLibrary() {
         sel.value = currentVal;
       }
     });
+    renderPosterGrid(posters);
   } catch (err) {
     console.warn('[Poster Library] Could not load saved posters:', err);
   }
 }
+
+/** Thumbnails of the poster library on the Posters page, each with a delete button. */
+function renderPosterGrid(posters) {
+  const grid = document.getElementById('poster-library-grid');
+  if (!grid) return;
+  document.getElementById('poster-library-count').textContent = `${posters.length} poster${posters.length === 1 ? '' : 's'}`;
+  if (!posters.length) {
+    grid.innerHTML = '<div class="item-list__empty">No posters yet. Add PNG, JPG, WebP or SVG files above.</div>';
+    return;
+  }
+  grid.innerHTML = posters.map((p) => `
+    <div class="poster-tile">
+      <img src="${escAttr(/^https?:/.test(p.mediaUrl) ? p.mediaUrl : API_ORIGIN + p.mediaUrl)}" alt="" loading="lazy" />
+      <span class="poster-tile__name">${escHtml(p.name)}</span>
+      <button class="btn btn--danger btn--sm" type="button" data-delete-poster="${escAttr(p.filename)}" data-name="${escAttr(p.name)}">Delete</button>
+    </div>`).join('');
+}
+document.getElementById('poster-library-grid')?.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-delete-poster]');
+  if (!button || !confirm(`Delete the poster "${button.dataset.name}"?`)) return;
+  try {
+    await apiDelete(`/posters/library/${encodeURIComponent(button.dataset.deletePoster)}`);
+    toast('Poster deleted', 'info');
+    await loadPosterLibrary();
+  } catch (err) {
+    toast(`Could not delete poster: ${err.message}`, 'error');
+  }
+});
 
 function wirePosterLibraryEvents() {
   document.querySelectorAll('.poster-library-select').forEach((sel) => {
@@ -1973,7 +2002,7 @@ function activateSvgEditorPanel() {
   if (groupsListViewEl) groupsListViewEl.classList.remove('hidden');
 
   // Update breadcrumb
-  document.getElementById('breadcrumb-current').textContent = 'SVG Editor';
+  document.getElementById('breadcrumb-current').textContent = 'Posters';
 
   // Mark the nav link active
   document.querySelectorAll('.sidebar__nav .nav-link, [data-overview]').forEach((link) => {
@@ -2074,13 +2103,93 @@ function activateSvgEditorPanel() {
       for (const t of data.templates) {
         const opt = document.createElement('option');
         opt.value = t.filename;
-        opt.textContent = `${t.name} (${t.filename})`;
+        opt.textContent = `${t.name} (${t.filename})${t.custom ? ' · added' : ''}`;
         tplSelect.appendChild(opt);
       }
+      renderCustomTemplates();
     } catch (err) {
       console.warn('[SVG Editor] Could not load templates:', err);
     }
   }
+
+  // ─── Poster library: templates and posters added from this computer ───────
+  const customTemplatesBox  = document.getElementById('svg-custom-templates');
+  const customTemplatesList = document.getElementById('svg-custom-templates-list');
+  const posterUploadInput   = document.getElementById('poster-upload-input');
+  const btnPosterUpload     = document.getElementById('btn-poster-upload');
+  const posterUploadStatus  = document.getElementById('poster-upload-status');
+
+  function renderCustomTemplates() {
+    if (!customTemplatesList) return;
+    const custom = _templatesCache.filter((t) => t.custom);
+    customTemplatesBox.classList.toggle('hidden', !custom.length);
+    customTemplatesList.innerHTML = custom.map((t) => `
+      <div class="poster-template-row">
+        <span>${escHtml(t.name)}</span><span class="field-hint-inline">${escHtml(t.filename)}</span>
+        <button class="btn btn--danger btn--sm ml-auto" type="button" data-delete-template="${escAttr(t.filename)}">Delete</button>
+      </div>`).join('');
+  }
+
+  customTemplatesList?.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-delete-template]');
+    if (!button || !confirm(`Delete the template "${button.dataset.deleteTemplate}"? Posters already saved from it stay in the library.`)) return;
+    try {
+      await apiDelete(`/posters/templates/${encodeURIComponent(button.dataset.deleteTemplate)}`);
+      toast('Template deleted', 'info');
+      await loadSvgTemplates();
+    } catch (err) {
+      toast(`Could not delete template: ${err.message}`, 'error');
+    }
+  });
+
+  btnPosterUpload?.addEventListener('click', async () => {
+    const files = [...posterUploadInput.files];
+    if (!files.length) {
+      toast('Choose one or more poster files first', 'error');
+      return;
+    }
+    btnPosterUpload.disabled = true;
+    const added = [];
+    const failed = [];
+    for (const file of files) {
+      const name = file.name.replace(/\.[^.]+$/, '');
+      posterUploadStatus.textContent = `Adding ${file.name}...`;
+      try {
+        if (/\.svg$/i.test(file.name) || file.type === 'image/svg+xml') {
+          // Keep the SVG as an editable template, and add a PNG WhatsApp can show.
+          const doc = new DOMParser().parseFromString(await file.text(), 'image/svg+xml');
+          if (doc.querySelector('parsererror') || doc.documentElement.nodeName.toLowerCase() !== 'svg') throw new Error('not a valid SVG file');
+          const template = new FormData();
+          template.append('media', file, file.name);
+          await apiPostForm('/posters/templates', template);
+          const poster = new FormData();
+          poster.append('media', await svgToPng(doc.documentElement), `${name}.png`);
+          poster.append('name', name);
+          await apiPostForm('/posters/save', poster);
+        } else if (/\.(png|jpe?g|webp)$/i.test(file.name)) {
+          const poster = new FormData();
+          poster.append('media', file, file.name);
+          poster.append('name', name);
+          await apiPostForm('/posters/save', poster);
+        } else {
+          throw new Error('use a PNG, JPG, WebP or SVG file');
+        }
+        added.push(file.name);
+      } catch (err) {
+        failed.push(`${file.name} (${err.message})`);
+      }
+    }
+    posterUploadInput.value = '';
+    btnPosterUpload.disabled = false;
+    posterUploadStatus.textContent = [
+      added.length ? `Added ${added.length} file${added.length === 1 ? '' : 's'} to the library.` : '',
+      failed.length ? `Not added: ${failed.join('; ')}` : '',
+    ].filter(Boolean).join(' ');
+    if (added.length) toast(`Added ${added.length} poster file${added.length === 1 ? '' : 's'}`, 'success');
+    if (failed.length) toast(`Some files were not added: ${failed.join('; ')}`, 'error');
+    await loadSvgTemplates();
+    await loadPosterLibrary();
+  });
 
   function loadTemplateByName(filename) {
     const tpl = _templatesCache.find((t) => t.filename === filename);

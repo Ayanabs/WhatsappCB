@@ -39,7 +39,7 @@
       <button class="nav-link" type="button" data-nav-service="countdown"><svg class="icon"><use href="#i-clock"/></svg>Countdown</button>
       <button class="nav-link" type="button" data-nav-service="posts"><svg class="icon"><use href="#i-calendar"/></svg>Scheduled posts<span class="nav-count" id="nav-post-count">0</span></button>
       <button class="nav-link" type="button" data-nav-service="commands"><svg class="icon"><use href="#i-terminal"/></svg>Bot commands</button>
-      <button class="nav-link" type="button" data-nav-service="svg-editor"><svg class="icon"><use href="#i-svg"/></svg>SVG Editor</button>
+      <button class="nav-link" type="button" data-nav-service="svg-editor"><svg class="icon"><use href="#i-svg"/></svg>Posters</button>
     </nav>
     <p class="nav-label">MONITOR</p>
     <a class="nav-link" href="#activity-section"><svg class="icon"><use href="#i-activity"/></svg>Activity log</a>
@@ -601,16 +601,35 @@
     <section id="svg-editor-panel" class="card card--full hidden" aria-label="SVG Editor">
       <div class="card__header">
         <svg class="icon"><use href="#i-svg"/></svg>
-        <h2>SVG Editor</h2>
-        <span class="field-hint-inline ml-auto">Upload an SVG, edit its text fields, download or use as poster</span>
+        <h2>Posters &amp; SVG Editor</h2>
+        <span class="field-hint-inline ml-auto">Add posters, or edit an SVG template's text and save it as a poster</span>
       </div>
       <div class="card__body svg-editor-body">
+
+        <!-- Poster Library: add posters from this computer -->
+        <div class="sub-card poster-manager mb-sm">
+          <div class="poster-manager__head">
+            <h3 class="sub-card__title">Poster library</h3>
+            <span class="field-hint-inline" id="poster-library-count"></span>
+          </div>
+          <p class="field-hint">Add posters from this computer. PNG, JPG and WebP files go straight into the library you pick countdown and post posters from. SVG files are saved as editable templates and also added to the library as PNG, because WhatsApp shows SVG files as attachments rather than pictures.</p>
+          <div class="poster-upload-row">
+            <input id="poster-upload-input" class="field-input" type="file" multiple accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" aria-label="Poster files to add" />
+            <button id="btn-poster-upload" class="btn btn--primary" type="button">Add to library</button>
+          </div>
+          <p id="poster-upload-status" class="field-hint" role="status"></p>
+          <div id="poster-library-grid" class="poster-grid" aria-label="Poster library"></div>
+          <div id="svg-custom-templates" class="poster-templates hidden">
+            <h4 class="poster-templates__title">SVG templates you added</h4>
+            <div id="svg-custom-templates-list" class="poster-templates__list"></div>
+          </div>
+        </div>
 
         <!-- Template Picker -->
         <div class="svg-source-bar mb-sm">
           <div class="form-row" style="align-items: flex-end;">
             <div class="form-col">
-              <label class="field-label" for="svg-template-select">Choose SVG Template from Posters Folder:</label>
+              <label class="field-label" for="svg-template-select">Choose an SVG template to edit:</label>
               <select id="svg-template-select" class="field-input">
                 <option value="">-- Choose an SVG Template --</option>
               </select>

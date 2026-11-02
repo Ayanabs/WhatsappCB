@@ -183,6 +183,49 @@ test('poster templates, library registration and multi-service media attachment'
     await fs.access(posterFile);
   });
 
+  await t.test('SVG templates can be added from the dashboard and deleted again', async () => {
+    const form = new FormData();
+    // Same name as the bundled template: the added one is renamed instead of replacing it.
+    form.append('media', new Blob([sampleSvg], { type: 'image/svg+xml' }), 'sample-poster.svg');
+    let res = await fetch(`${origin}/api/posters/templates`, { method: 'POST', body: form });
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).template.filename, 'sample-poster-2.svg');
+    await fs.access(path.join(uploadsDir, 'templates', 'sample-poster-2.svg'));
+
+    res = await fetch(`${origin}/api/posters/templates`);
+    const { templates } = await res.json();
+    assert.deepEqual(templates.map((t) => [t.filename, t.custom, t.url]), [
+      ['sample-poster.svg', false, '/posters/sample-poster.svg'],
+      ['sample-poster-2.svg', true, '/uploads/templates/sample-poster-2.svg'],
+    ]);
+
+    const notSvg = new FormData();
+    notSvg.append('media', new Blob(['png'], { type: 'image/png' }), 'photo.png');
+    res = await fetch(`${origin}/api/posters/templates`, { method: 'POST', body: notSvg });
+    assert.equal(res.status, 400);
+
+    res = await fetch(`${origin}/api/posters/templates/sample-poster.svg`, { method: 'DELETE' });
+    assert.equal(res.status, 404, 'bundled templates are kept');
+    res = await fetch(`${origin}/api/posters/templates/sample-poster-2.svg`, { method: 'DELETE' });
+    assert.equal(res.status, 200);
+    await assert.rejects(fs.access(path.join(uploadsDir, 'templates', 'sample-poster-2.svg')));
+  });
+
+  await t.test('library posters are deleted unless a countdown still uses them', async () => {
+    const filename = path.basename(savedPosterUrl);
+    h.db.set('countdowns[0].mediaPath', path.join(uploadsDir, filename)).write();
+    let res = await fetch(`${origin}/api/posters/library/${filename}`, { method: 'DELETE' });
+    assert.equal(res.status, 409);
+    assert.match((await res.json()).error, /countdown "Science Exhibition"/);
+    await fs.access(path.join(uploadsDir, filename));
+
+    h.db.set('countdowns[0].mediaPath', null).write();
+    res = await fetch(`${origin}/api/posters/library/${filename}`, { method: 'DELETE' });
+    assert.equal(res.status, 200);
+    await assert.rejects(fs.access(path.join(uploadsDir, filename)));
+    assert.equal(h.db.get('savedPosters').size().value(), 0);
+  });
+
   await t.test('daily alarm routes are gone', async () => {
     const res = await fetch(`${origin}/api/alarms`, { method: 'POST', body: new FormData() });
     assert.equal(res.status, 404);

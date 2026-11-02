@@ -65,6 +65,15 @@ Everyday commands:
 | Update after code changes | `docker compose up -d --build` |
 | Stop (keeps data) | `docker compose down` |
 
+**Adding posters.** Open the dashboard from any browser that can reach the server
+(`http://<server-ip>:5151`) and choose **Posters** in the sidebar. Use **Add to library**
+to upload PNG, JPG, WebP or SVG files from your computer. Images go straight into the
+poster library used by countdowns and posts; SVG files are also kept as editable
+templates and added to the library as PNG. Everything you add is stored in the
+`bot_uploads` volume (templates under `uploads/templates/`), so it survives rebuilds.
+Posters and templates you added can be deleted there too; a poster still used by a
+countdown or post is kept until you choose a different one.
+
 **Security.** The dashboard has no login: anyone who can reach ports 5150/5151 can
 control the bot. Either set `BIND_IP=127.0.0.1` in `.env` and reach the dashboard
 through an SSH tunnel (`ssh -L 5151:localhost:5151 -L 5150:localhost:5150 user@server`)
@@ -283,6 +292,12 @@ Configure them via `data/config.json` under the `plugins` key:
 | `DELETE` | `/api/countdowns/:id`        | Delete a countdown                                  |
 | `POST`   | `/api/countdowns/:id/days/:date` | Save content for one day of a countdown         |
 | `POST`   | `/api/countdowns/:id/broadcast` | Save and immediately broadcast a countdown (`/api/countdowns/broadcast` creates it first) |
+| `GET`    | `/api/posters/library`       | Poster library (saved and uploaded images)          |
+| `POST`   | `/api/posters/save`          | Add an image to the poster library                  |
+| `DELETE` | `/api/posters/library/:file` | Delete a library poster no countdown/post uses      |
+| `GET`    | `/api/posters/templates`     | SVG templates (bundled and added)                   |
+| `POST`   | `/api/posters/templates`     | Add an SVG template                                 |
+| `DELETE` | `/api/posters/templates/:file` | Delete an added SVG template                      |
 | `POST`   | `/api/posts`                 | Add scheduled post                                  |
 | `DELETE` | `/api/posts/:id`             | Delete a scheduled post                             |
 | `POST`   | `/api/logout`                | Revoke WhatsApp session and purge cache             |

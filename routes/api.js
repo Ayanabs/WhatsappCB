@@ -34,8 +34,12 @@ const logger = require('../core/logger');
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 const POSTERS_DIR = path.join(process.cwd(), 'posters');
+// SVG templates added from the dashboard live with the uploads, which are kept in a
+// Docker volume; the bundled posters folder is part of the image.
+const TEMPLATES_DIR = path.join(UPLOADS_DIR, 'templates');
 fse.ensureDirSync(UPLOADS_DIR);
 fse.ensureDirSync(POSTERS_DIR);
+fse.ensureDirSync(TEMPLATES_DIR);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
@@ -112,18 +116,37 @@ function resolveMediaPath(file) {
 }
 
 /**
+ * Describe what still uses an uploaded file, or return '' when nothing does.
+ * @param {string} filePath
+ * @param {{ includeLibrary?: boolean }} [options]
+ */
+function uploadUsage(filePath, { includeLibrary = true } = {}) {
+  const db = getDb();
+  const name = path.basename(filePath);
+  if (includeLibrary && (db.get('savedPosters').value() || []).some((p) => p.filename === name)) return 'the poster library';
+  const countdown = (db.get('countdowns').value() || []).find((c) => c.mediaPath === filePath ||
+    Object.values(c.dailyContent || {}).some((day) => day.mediaPath === filePath));
+  if (countdown) return `the countdown "${countdown.eventTitle || 'Event Countdown'}"`;
+  if ((db.get('scheduledPosts').value() || []).some((p) => p.mediaPath === filePath)) return 'a scheduled post';
+  return '';
+}
+
+/**
  * Delete an uploaded file once nothing refers to it any more. Library posters
  * and files shared with other countdowns or posts are kept.
  */
 async function removeUnusedUpload(filePath) {
   if (!filePath || !path.resolve(filePath).startsWith(UPLOADS_DIR + path.sep)) return;
-  const db = getDb();
-  const name = path.basename(filePath);
-  const used = (db.get('savedPosters').value() || []).some((p) => p.filename === name) ||
-    (db.get('scheduledPosts').value() || []).some((p) => p.mediaPath === filePath) ||
-    (db.get('countdowns').value() || []).some((c) => c.mediaPath === filePath ||
-      Object.values(c.dailyContent || {}).some((day) => day.mediaPath === filePath));
-  if (!used) await fse.remove(filePath).catch(() => {});
+  if (!uploadUsage(filePath)) await fse.remove(filePath).catch(() => {});
+}
+
+/** A file name that is safe on disk and not already taken in any of the folders. */
+function availableName(original, extension, folders) {
+  const base = path.basename(original, path.extname(original)).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'poster';
+  for (let n = 1; ; n++) {
+    const name = `${base}${n > 1 ? `-${n}` : ''}${extension}`;
+    if (!folders.some((dir) => fse.existsSync(path.join(dir, name)))) return name;
+  }
 }
 
 // ─── GET /api/state ───────────────────────────────────────────────────────────
@@ -777,17 +800,17 @@ router.post('/worker/tick', async (req, res) => {
 
 /**
  * GET /api/posters/templates
- * Returns list of SVG templates available in the /posters folder.
+ * Returns the SVG templates bundled in the /posters folder and those added from the dashboard.
  */
 router.get('/posters/templates', async (_req, res) => {
   try {
     fse.ensureDirSync(POSTERS_DIR);
-    const files = await fse.readdir(POSTERS_DIR);
+    fse.ensureDirSync(TEMPLATES_DIR);
     const templates = [];
-    for (const file of files) {
-      if (file.toLowerCase().endsWith('.svg')) {
-        const filePath = path.join(POSTERS_DIR, file);
-        const content = await fse.readFile(filePath, 'utf8');
+    for (const [dir, urlBase, custom] of [[POSTERS_DIR, '/posters', false], [TEMPLATES_DIR, '/uploads/templates', true]]) {
+      for (const file of await fse.readdir(dir)) {
+        if (!file.toLowerCase().endsWith('.svg')) continue;
+        const content = await fse.readFile(path.join(dir, file), 'utf8');
         const displayName = file
           .replace(/\.svg$/i, '')
           .replace(/[-_]/g, ' ')
@@ -796,7 +819,8 @@ router.get('/posters/templates', async (_req, res) => {
           id: `tpl-${file}`,
           filename: file,
           name: displayName,
-          url: `/posters/${file}`,
+          url: `${urlBase}/${file}`,
+          custom,
           content,
         });
       }
@@ -886,6 +910,74 @@ router.post('/posters/save', upload.single('media'), (req, res) => {
     res.json({ ok: true, poster });
   } catch (err) {
     logger.error('[API] POST /posters/save error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/posters/templates
+ * Adds an SVG template uploaded from the dashboard.
+ */
+router.post('/posters/templates', upload.single('media'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ ok: false, error: 'Choose an SVG file to add.' });
+    const content = await fse.readFile(req.file.path, 'utf8');
+    if (!/\.svg$/i.test(req.file.originalname) || !/<svg[\s>]/i.test(content)) {
+      await fse.remove(req.file.path).catch(() => {});
+      return res.status(400).json({ ok: false, error: 'Templates must be SVG files.' });
+    }
+    const filename = availableName(req.file.originalname, '.svg', [POSTERS_DIR, TEMPLATES_DIR]);
+    await fse.move(req.file.path, path.join(TEMPLATES_DIR, filename));
+    logger.info(`[API] SVG template added: ${filename}`);
+    res.json({ ok: true, template: { filename, url: `/uploads/templates/${filename}`, custom: true } });
+  } catch (err) {
+    if (req.file) await fse.remove(req.file.path).catch(() => {});
+    logger.error('[API] POST /posters/templates error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/posters/templates/:filename
+ * Removes an SVG template that was added from the dashboard (bundled ones are kept).
+ */
+router.delete('/posters/templates/:filename', async (req, res) => {
+  try {
+    const filePath = path.join(TEMPLATES_DIR, path.basename(req.params.filename));
+    if (!(await fse.pathExists(filePath))) {
+      return res.status(404).json({ ok: false, error: 'Only templates added from the dashboard can be deleted.' });
+    }
+    await fse.remove(filePath);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error('[API] DELETE /posters/templates error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/posters/library/:filename
+ * Removes a poster from the library, unless a countdown or post still uses it.
+ */
+router.delete('/posters/library/:filename', async (req, res) => {
+  try {
+    const filename = path.basename(req.params.filename);
+    const filePath = path.join(UPLOADS_DIR, filename);
+    const db = getDb();
+    const tracked = (db.get('savedPosters').value() || []).some((p) => p.filename === filename);
+    if (!tracked && !(await fse.pathExists(filePath))) {
+      return res.status(404).json({ ok: false, error: 'Poster not found.' });
+    }
+    const usage = uploadUsage(filePath, { includeLibrary: false });
+    if (usage) {
+      return res.status(409).json({ ok: false, error: `This poster is used by ${usage}. Choose another poster there first.` });
+    }
+    db.get('savedPosters').remove({ filename }).write();
+    await fse.remove(filePath);
+    broadcast('config:updated', db.getState());
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error('[API] DELETE /posters/library error:', err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
