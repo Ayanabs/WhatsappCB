@@ -23,6 +23,7 @@ let _lastQrImageUrl = null;
 let _io = null;                  // Socket.IO server reference (injected after init)
 let _messageListener = null;     // Registered incoming message handler
 let _isLoggingOut = false;       // Guard against concurrent logout/re-init calls
+let _isRecovering = false;       // Guard against concurrent page recoveries
 
 function getLastQr() {
   return _lastQrImageUrl;
@@ -286,9 +287,57 @@ async function logoutClient() {
 }
 
 /**
+ * Errors meaning the WhatsApp Web page behind the client is gone (for example after
+ * WhatsApp Web reloads itself). The client still looks ready, but every call fails.
+ */
+const DEAD_PAGE_ERROR = /detached Frame|Execution context was destroyed|Target closed|Session closed|Protocol error.*(closed|not found)|frame was detached/i;
+
+/**
+ * Restart the browser page with the saved session after the page died, so sends
+ * resume without a new QR scan. Countdowns and posts that failed meanwhile are
+ * retried by the task worker once the client is ready again.
+ * @param {string} reason
+ */
+async function recoverClient(reason) {
+  if (_isRecovering || _isLoggingOut || !_client) return;
+  _isRecovering = true;
+  _clientReady = false;
+  logger.warn(`[WhatsApp] WhatsApp Web page stopped responding (${reason}). Restarting the connection...`);
+  broadcast('wa:disconnected', { reason: 'Reconnecting to WhatsApp Web' });
+
+  const deadClient = _client;
+  _client = null;
+  try {
+    await Promise.race([
+      deadClient.destroy(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Destroy timed out')), 5000)),
+    ]);
+  } catch (err) {
+    logger.warn('[WhatsApp] Browser destroy notice:', err.message);
+  }
+  killPuppeteerProcesses(deadClient);
+
+  try {
+    await startClient();
+  } finally {
+    _isRecovering = false;
+  }
+}
+
+/** Start a recovery when an error shows the page is gone. */
+function recoverIfPageDead(err) {
+  if (DEAD_PAGE_ERROR.test(err?.message || '')) {
+    recoverClient(err.message).catch((recoverErr) => {
+      logger.error('[WhatsApp] Could not restart the connection:', recoverErr.message);
+    });
+  }
+}
+
+/**
  * Returns true when the WA client is fully initialised and ready.
  */
 function isReady() {
+  if (_isRecovering) return false;
   if (_clientReady && _client !== null) return true;
   if (_client && _client.info && _client.info.wid) {
     _clientReady = true;
@@ -413,6 +462,7 @@ async function getGroups(options = {}) {
     return adminOnly ? groupChats.filter((g) => g.isAdmin) : groupChats;
   } catch (err) {
     logger.error('[WhatsApp] Error getting groups:', err.message);
+    recoverIfPageDead(err);
     return [];
   }
 }
@@ -461,6 +511,7 @@ async function findGroupByName(groupName) {
     return target || null;
   } catch (err) {
     logger.error('[WhatsApp] Error finding group by name:', err.message);
+    recoverIfPageDead(err);
     return null;
   }
 }
@@ -491,6 +542,7 @@ async function sendMessage(chatId, message, mediaPath = null, { throwOnError = f
     return true;
   } catch (err) {
     logger.error(`[WhatsApp] Failed to send message to ${chatId}:`, err.message);
+    recoverIfPageDead(err);
     if (throwOnError) throw err;
     return false;
   }

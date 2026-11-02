@@ -23,6 +23,7 @@
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-activity" viewBox="0 0 24 24"><path d="M2 12h5l3-8 4 16 3-8h5"/></symbol>
+    <symbol id="i-svg" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M12 8v8"/></symbol>
   </svg>
 
   <aside class="sidebar" aria-label="Workspace navigation">
@@ -37,8 +38,8 @@
       <button class="nav-link" type="button" data-nav-service="dispatch"><svg class="icon"><use href="#i-message"/></svg>Send a message</button>
       <button class="nav-link" type="button" data-nav-service="countdown"><svg class="icon"><use href="#i-clock"/></svg>Countdown</button>
       <button class="nav-link" type="button" data-nav-service="posts"><svg class="icon"><use href="#i-calendar"/></svg>Scheduled posts<span class="nav-count" id="nav-post-count">0</span></button>
-      <button class="nav-link" type="button" data-nav-service="alarms"><svg class="icon"><use href="#i-bell"/></svg>Daily alarms</button>
       <button class="nav-link" type="button" data-nav-service="commands"><svg class="icon"><use href="#i-terminal"/></svg>Bot commands</button>
+      <button class="nav-link" type="button" data-nav-service="svg-editor"><svg class="icon"><use href="#i-svg"/></svg>SVG Editor</button>
     </nav>
     <p class="nav-label">MONITOR</p>
     <a class="nav-link" href="#activity-section"><svg class="icon"><use href="#i-activity"/></svg>Activity log</a>
@@ -99,7 +100,7 @@
       <div class="metrics-row">
         <article class="metric"><span class="metric__icon"><svg class="icon"><use href="#i-users"/></svg></span><div><span class="metric__label">Target groups</span><strong id="metric-groups">0</strong></div><span class="metric__detail">Configured audiences</span></article>
         <article class="metric"><span class="metric__icon metric__icon--blue"><svg class="icon"><use href="#i-calendar"/></svg></span><div><span class="metric__label">Scheduled posts</span><strong id="metric-posts">0</strong></div><span class="metric__detail" id="metric-posts-detail">Waiting to be sent</span></article>
-        <article class="metric"><span class="metric__icon metric__icon--amber"><svg class="icon"><use href="#i-bell"/></svg></span><div><span class="metric__label">Daily alarms</span><strong id="metric-alarms">0</strong></div><span class="metric__detail">Active reminders</span></article>
+        <article class="metric"><span class="metric__icon metric__icon--amber"><svg class="icon"><use href="#i-clock"/></svg></span><div><span class="metric__label">Countdowns</span><strong id="metric-countdowns">0</strong></div><span class="metric__detail">Active countdowns</span></article>
       </div>
     </section>
 
@@ -115,6 +116,23 @@
           <div class="qr-spinner">Waiting for QR code...</div>
         </div>
         <p class="qr-note">The QR code is also streamed to the terminal console.</p>
+      </div>
+    </section>
+
+    <section id="approval-setup-panel" class="card card--full hidden">
+      <div class="card__header"><span class="card__tag">[APPROVAL]</span><h2>Authenticator approval</h2></div>
+      <div class="card__body">
+        <p id="approval-setup-status" class="field-hint">Checking approval settings...</p>
+        <button id="approval-setup-start" class="btn btn--secondary hidden" type="button">Set up authenticator</button>
+        <div id="approval-setup-details" class="hidden">
+          <p class="field-hint">Scan this QR code with your authenticator app. This is separate from the WhatsApp QR code.</p>
+          <div class="qr-container"><img id="approval-setup-qr" alt="Authenticator setup QR code" /></div>
+          <p class="field-hint">Or enter this setup key in the app: <strong id="approval-setup-key"></strong></p>
+          <label class="field-label" for="approval-setup-code">Code from authenticator app</label>
+          <input id="approval-setup-code" class="field-input field-input--sm" inputmode="numeric" autocomplete="one-time-code" maxlength="6" />
+          <button id="approval-setup-confirm" class="btn btn--primary mt-sm" type="button">Enable approval</button>
+          <p class="field-hint">Keep the QR code and setup key private. Setup expires after five minutes.</p>
+        </div>
       </div>
     </section>
 
@@ -224,13 +242,6 @@
                 <span class="service-card__status" id="posts-card-status">0 Queued</span>
               </div>
 
-              <div class="service-card" data-service="alarms">
-                <div class="service-card__tag">[ALARMS]</div>
-                <h4 class="service-card__title">Daily Alarms</h4>
-                <div class="service-card__desc">Recurring HH:MM reminders</div>
-                <span class="service-card__status" id="alarms-card-status">0 Configured</span>
-              </div>
-
               <div class="service-card" data-service="commands">
                 <div class="service-card__tag">[COMMANDS]</div>
                 <h4 class="service-card__title">Bot Commands</h4>
@@ -242,7 +253,7 @@
 
           <!-- Configuration Panel for the Selected Service -->
           <div class="service-config-panel">
-            <p class="shared-settings-note">Shared automation settings: countdowns, scheduled posts, alarms, and bot commands apply to all configured target groups. Direct messages use the recipient you select.</p>
+            <p class="shared-settings-note">Shared automation settings: countdowns, scheduled posts, and bot commands apply to all configured target groups. Direct messages use the recipient you select.</p>
 
             <!-- 1. Test Message / Direct Dispatcher -->
             <div id="service-view-dispatch" class="service-config-view is-active">
@@ -277,6 +288,12 @@
                       <div id="test-media-preview" class="media-preview hidden"></div>
                       <button id="test-media-clear" class="btn btn--ghost btn--sm hidden" type="button">Remove</button>
                     </div>
+                    <div class="poster-library-row mt-xs">
+                      <label class="field-hint" for="test-poster-select" style="display:block; margin-bottom: 4px;">Or choose from Saved Posters (PNG):</label>
+                      <select id="test-poster-select" class="field-input field-input--sm poster-library-select" data-area="test-media-area">
+                        <option value="">-- Choose from Poster Library --</option>
+                      </select>
+                    </div>
 
                     <div class="action-row mt-sm">
                       <button id="btn-send-test" class="btn btn--primary">Send Test Message Now</button>
@@ -292,14 +309,26 @@
               <div class="card card--service">
                 <div class="card__header">
                   <span class="card__tag">[COUNTDOWN]</span>
-                  <h2>Countdown Bot</h2>
-                  <label class="toggle ml-auto" title="Enable or disable countdown broadcasts">
-                    <input id="countdown-enabled" type="checkbox" aria-label="Enable countdown broadcasts" />
-                    <span class="toggle__slider"></span>
-                  </label>
+                  <h2>Countdowns</h2>
+                  <button id="btn-new-countdown" class="btn btn--secondary btn--sm ml-auto" type="button"><svg class="icon"><use href="#i-plus"/></svg>New countdown</button>
+                </div>
+                <div class="card__body countdown-list-panel">
+                  <div id="countdowns-list" class="item-list">
+                    <div class="item-list__empty">No countdowns yet. Fill in the form below and save to create one.</div>
+                  </div>
                 </div>
                 <div class="card__body countdown-editor">
-                  <div class="countdown-fields">
+                  <div class="countdown-editor__head">
+                    <h3 class="sub-card__title" id="countdown-editing-label">New countdown</h3>
+                    <label class="countdown-enable ml-auto" title="Enable or disable automatic daily broadcasts for this countdown">
+                      <span>Send automatically</span>
+                      <span class="toggle">
+                        <input id="countdown-enabled" type="checkbox" aria-label="Send this countdown automatically" />
+                        <span class="toggle__slider"></span>
+                      </span>
+                    </label>
+                  </div>
+                  <div class="countdown-schedule">
                   <div class="form-row">
                     <div class="form-col">
                       <label class="field-label" for="countdown-start-date">Start Date &amp; Time (Sri Lanka)</label>
@@ -312,7 +341,40 @@
                       <p class="field-hint">The target deadline when countdown reaches zero.</p>
                     </div>
                   </div>
+                  <div class="sub-card day-planner mt-sm">
+                    <div class="day-planner__head">
+                      <h3 class="sub-card__title">Countdown days</h3>
+                      <span class="field-hint-inline" id="countdown-day-summary"></span>
+                    </div>
+                    <p class="field-hint">One card for every day between the start and target dates, showing what will be sent. Choose a day to give it its own title, message or poster. Days without changes use the main content below.</p>
+                    <div id="countdown-day-cards" class="day-cards" aria-label="Countdown days"></div>
+                    <div id="countdown-day-editor" class="day-editor hidden">
+                    <div class="day-editor__head">
+                      <h4 id="countdown-day-heading">Day</h4>
+                      <button id="countdown-day-close" class="btn btn--ghost btn--sm ml-auto" type="button">Close</button>
+                    </div>
+                    <input id="countdown-day-date" class="hidden" type="date" aria-hidden="true" tabindex="-1" />
+                    <label class="field-label mt-sm" for="countdown-day-title">Title for this day</label>
+                    <input id="countdown-day-title" class="field-input" type="text" placeholder="Use main title" />
+                    <label class="field-label mt-sm" for="countdown-day-message">Message for this day</label>
+                    <textarea id="countdown-day-message" class="field-textarea" rows="3" placeholder="Use main message; countdown tokens are supported"></textarea>
+                    <label class="field-label mt-sm" for="countdown-day-media">Image or video for this day</label>
+                    <input id="countdown-day-media" class="field-input" type="file" accept="image/*,video/*" />
+                    <div class="poster-library-row mt-xs">
+                      <label class="field-hint" for="countdown-day-poster-select" style="display:block; margin-bottom: 4px;">Or choose from Saved Posters (PNG):</label>
+                      <select id="countdown-day-poster-select" class="field-input field-input--sm poster-library-select" data-target="countdown-day">
+                        <option value="">-- Choose from Poster Library --</option>
+                      </select>
+                    </div>
+                    <p id="countdown-day-media-name" class="field-hint">Using main poster.</p>
+                    <button id="countdown-day-clear" class="btn btn--ghost btn--sm" type="button">Use main poster</button>
+                    <button id="countdown-day-save" class="btn btn--secondary btn--sm" type="button">Save this day</button>
+                    <p class="field-hint">Each day is saved separately. To remove an override, clear its fields and choose “Use main poster”, then save.</p>
+                    </div>
+                  </div>
+                  </div>
 
+                  <div class="countdown-fields">
                   <label class="field-label mt-sm" for="countdown-title">Event Title</label>
                   <p class="shared-settings-note hidden" id="countdown-schedule-hint" role="status"></p>
                   <input id="countdown-title" class="field-input" type="text" placeholder="e.g. Annual Science Exhibition" />
@@ -339,24 +401,14 @@
                     <div id="countdown-media-preview" class="media-preview hidden"></div>
                     <button id="countdown-media-clear" class="btn btn--ghost btn--sm hidden" type="button">Remove Poster</button>
                   </div>
+                  <div class="poster-library-row mt-xs">
+                    <label class="field-hint" for="countdown-poster-select" style="display:block; margin-bottom: 4px;">Or choose from Saved Posters (PNG):</label>
+                    <select id="countdown-poster-select" class="field-input field-input--sm poster-library-select" data-area="countdown-media-area">
+                      <option value="">-- Choose from Poster Library --</option>
+                    </select>
+                  </div>
                   <p class="field-hint">Your poster and countdown are sent together as one message, with the countdown as its caption.</p>
 
-                  <div class="sub-card mt-sm">
-                    <h3 class="sub-card__title">Content for a specific day (optional)</h3>
-                    <p class="field-hint">Save the start and target dates first. Choose any date in that range and set only the fields you want to change. Blank fields use the main title, message and poster.</p>
-                    <label class="field-label" for="countdown-day-date">Date (Sri Lanka)</label>
-                    <input id="countdown-day-date" class="field-input" type="date" />
-                    <label class="field-label mt-sm" for="countdown-day-title">Title for this day</label>
-                    <input id="countdown-day-title" class="field-input" type="text" placeholder="Use main title" />
-                    <label class="field-label mt-sm" for="countdown-day-message">Message for this day</label>
-                    <textarea id="countdown-day-message" class="field-textarea" rows="3" placeholder="Use main message; countdown tokens are supported"></textarea>
-                    <label class="field-label mt-sm" for="countdown-day-media">Image or video for this day</label>
-                    <input id="countdown-day-media" class="field-input" type="file" accept="image/*,video/*" />
-                    <p id="countdown-day-media-name" class="field-hint">Using main poster.</p>
-                    <button id="countdown-day-clear" class="btn btn--ghost btn--sm" type="button">Use main poster</button>
-                    <button id="countdown-day-save" class="btn btn--secondary btn--sm" type="button">Save this day</button>
-                    <p class="field-hint">Each day is saved separately. To remove an override, clear its fields and choose “Use main poster”, then save.</p>
-                  </div>
                   </div>
 
                   <div class="countdown-preview" id="countdown-preview" aria-label="Countdown message preview">
@@ -403,6 +455,12 @@
                       <div id="post-media-preview" class="media-preview hidden"></div>
                       <button id="post-media-clear" class="btn btn--ghost btn--sm hidden" type="button">Remove</button>
                     </div>
+                    <div class="poster-library-row mt-xs">
+                      <label class="field-hint" for="post-poster-select" style="display:block; margin-bottom: 4px;">Or choose from Saved Posters (PNG):</label>
+                      <select id="post-poster-select" class="field-input field-input--sm poster-library-select" data-area="post-media-area">
+                        <option value="">-- Choose from Poster Library --</option>
+                      </select>
+                    </div>
 
                     <button id="btn-add-post" class="btn btn--primary mt-sm">Schedule Post</button>
                   </div>
@@ -414,43 +472,7 @@
               </div>
             </div>
 
-            <!-- 4. Daily Alarms Module -->
-            <div id="service-view-alarms" class="service-config-view">
-              <div class="card card--service">
-                <div class="card__header">
-                  <span class="card__tag">[ALARMS]</span>
-                  <h2>Daily Recurring Alarms</h2>
-                </div>
-                <div class="card__body">
-                  <div class="sub-card">
-                    <h3 class="sub-card__title">Create Daily Recurring Alarm</h3>
-                    <label class="field-label" for="alarm-time">Daily Fire Time (HH:MM)</label>
-                    <input id="alarm-time" class="field-input field-input--sm" type="time" />
-
-                    <label class="field-label mt-sm" for="alarm-message">Alarm Message / Caption</label>
-                    <textarea id="alarm-message" class="field-textarea" rows="3" placeholder="Enter recurring daily message..."></textarea>
-
-                    <label class="field-label mt-sm" for="alarm-media">Media Attachment (Video / Image / Audio - Max 64 MB)</label>
-                    <div class="media-upload-area" id="alarm-media-area">
-                      <input id="alarm-media" class="media-file-input" type="file" accept="video/*,image/*,audio/*" />
-                      <label for="alarm-media" class="media-upload-label">
-                        <span id="alarm-media-name">Choose file or drag &amp; drop</span>
-                      </label>
-                      <div id="alarm-media-preview" class="media-preview hidden"></div>
-                      <button id="alarm-media-clear" class="btn btn--ghost btn--sm hidden" type="button">Remove</button>
-                    </div>
-
-                    <button id="btn-add-alarm" class="btn btn--primary mt-sm">Register Daily Alarm</button>
-                  </div>
-
-                  <div id="alarms-list" class="item-list mt-sm">
-                    <div class="item-list__empty">No daily alarms configured.</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 5. Interactive Bot Commands Module -->
+            <!-- 4. Interactive Bot Commands Module -->
             <div id="service-view-commands" class="service-config-view">
               <div class="card card--service card--full-width">
                 <div class="card__header">
@@ -575,6 +597,98 @@
       </div>
     </section>
 
+    <!-- SVG Editor Panel -->
+    <section id="svg-editor-panel" class="card card--full hidden" aria-label="SVG Editor">
+      <div class="card__header">
+        <svg class="icon"><use href="#i-svg"/></svg>
+        <h2>SVG Editor</h2>
+        <span class="field-hint-inline ml-auto">Upload an SVG, edit its text fields, download or use as poster</span>
+      </div>
+      <div class="card__body svg-editor-body">
+
+        <!-- Template Picker -->
+        <div class="svg-source-bar mb-sm">
+          <div class="form-row" style="align-items: flex-end;">
+            <div class="form-col">
+              <label class="field-label" for="svg-template-select">Choose SVG Template from Posters Folder:</label>
+              <select id="svg-template-select" class="field-input">
+                <option value="">-- Choose an SVG Template --</option>
+              </select>
+            </div>
+            <div class="form-col" style="max-width: 170px;">
+              <button id="btn-load-template" class="btn btn--secondary" type="button" style="width: 100%;">Load Template</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upload Zone -->
+        <div id="svg-upload-zone" class="svg-upload-zone" tabindex="0" role="button" aria-label="Upload SVG file">
+          <input id="svg-file-input" type="file" accept=".svg,image/svg+xml" class="media-file-input" />
+          <label for="svg-file-input" class="svg-upload-label">
+            <span class="svg-upload-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" width="32" height="32">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </span>
+            <strong>Drop an SVG here or click to browse</strong>
+            <span>Supports .svg files only</span>
+          </label>
+        </div>
+
+        <!-- Editor Area (hidden until SVG loaded) -->
+        <div id="svg-editor-workspace" class="svg-editor-workspace hidden">
+          <div class="svg-editor-left">
+            <div class="svg-preview-wrapper">
+              <div id="svg-preview-container" class="svg-preview-container"></div>
+            </div>
+            <div class="action-row mt-sm">
+              <button id="btn-svg-download" class="btn btn--primary">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download SVG
+              </button>
+              <button id="btn-svg-save-library" class="btn btn--secondary">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                Save to Poster Library (PNG)
+              </button>
+              <button id="btn-svg-use-as-poster" class="btn btn--secondary">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                Use as Countdown Poster
+              </button>
+              <button id="btn-svg-clear" class="btn btn--ghost btn--sm ml-auto">Clear / Switch Template</button>
+            </div>
+            <p id="svg-poster-status" class="field-hint mt-sm"></p>
+          </div>
+          <div class="svg-editor-right">
+            <div class="sub-card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px; flex-wrap:wrap; gap:6px;">
+                <h3 class="sub-card__title" style="margin:0;">Edit Text Fields</h3>
+                <span id="svg-fields-count" class="field-hint" style="font-size:11px;"></span>
+              </div>
+              <div class="svg-field-search-wrap">
+                <input id="svg-field-search" class="field-input field-input--sm" type="search" placeholder="🔍 Search text fields (e.g. deadline, title, countdown)..." />
+              </div>
+              <p class="field-hint mb-sm" id="svg-no-text-hint" style="display:none">No editable text elements found in this SVG. The SVG may use non-standard text encoding or embedded images.</p>
+              <div class="svg-superscript-helper mb-sm">
+                <span class="field-hint" style="display:block; margin-bottom: 6px;">Click to insert superscript:</span>
+                <div class="superscript-badges" style="display: flex; flex-wrap: wrap; gap: 5px;">
+                  <button type="button" class="btn btn--secondary btn--sm btn-insert-char" data-char="ˢᵗ" title="Insert lowercase st">ˢᵗ</button>
+                  <button type="button" class="btn btn--secondary btn--sm btn-insert-char" data-char="ⁿᵈ" title="Insert lowercase nd">ⁿᵈ</button>
+                  <button type="button" class="btn btn--secondary btn--sm btn-insert-char" data-char="ʳᵈ" title="Insert lowercase rd">ʳᵈ</button>
+                  <button type="button" class="btn btn--secondary btn--sm btn-insert-char" data-char="ᵗʰ" title="Insert lowercase th">ᵗʰ</button>
+                  <button type="button" class="btn btn--secondary btn--sm btn-insert-char" data-char="ˢᵀ" title="Insert uppercase ST">ˢᵀ</button>
+                  <button type="button" class="btn btn--secondary btn--sm btn-insert-char" data-char="ᴺᴰ" title="Insert uppercase ND">ᴺᴰ</button>
+                  <button type="button" class="btn btn--secondary btn--sm btn-insert-char" data-char="ᴿᴰ" title="Insert uppercase RD">ᴿᴰ</button>
+                  <button type="button" class="btn btn--secondary btn--sm btn-insert-char" data-char="ᵀᴴ" title="Insert uppercase TH">ᵀᴴ</button>
+                </div>
+              </div>
+              <div id="svg-fields-container" class="svg-fields-container"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
   </main>
 
   <!-- FOOTER -->
@@ -586,9 +700,7 @@
   <dialog id="approval-dialog" aria-labelledby="approval-title">
     <form id="approval-form" method="dialog">
       <h2 id="approval-title">Approve this action</h2>
-      <p class="field-hint">Enter your approval password and a fresh code from your authenticator app.</p>
-      <label class="field-label" for="approval-password">Password</label>
-      <input id="approval-password" class="field-input" type="password" autocomplete="current-password" required />
+      <p class="field-hint">Enter a fresh code from your authenticator app.</p>
       <label class="field-label mt-sm" for="approval-code">Authenticator code</label>
       <input id="approval-code" class="field-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required />
       <div class="action-row mt-sm">

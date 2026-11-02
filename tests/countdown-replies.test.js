@@ -18,7 +18,7 @@ async function setup(t, { rejectQuote = false, unconfirmed = false, missingPoste
   const poster = path.join(directory, 'poster.png');
   const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
   if (!missingPoster) await fs.writeFile(poster, image);
-  h.db.set('countdown.enabled', true).set('countdown.mediaPath', textOnly ? null : poster).set('botCommands', {
+  h.db.set('countdowns[0].enabled', true).set('countdowns[0].mediaPath', textOnly ? null : poster).set('botCommands', {
     enabled: true, prefix: '!', allowedInTargetGroupsOnly: false,
     commands: [{ trigger: 'countdown', enabled: true, action: 'countdown' }],
   }).write();

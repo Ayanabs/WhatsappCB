@@ -1,16 +1,25 @@
 # Node modules — never copy into the image
 node_modules/
+.cache/
 
 # WhatsApp session — injected via Docker volume
 .wwebjs_auth/
+.wwebjs_cache/
 
 # Runtime data — injected via Docker volume
 data/
 uploads/
+logs/
+
+# Tests and local verification output
+tests/
+scratch/
+coverage/
 
 # Dev tooling
 nodemon.json
 .env
+.env.*
 *.log
 
 # Git

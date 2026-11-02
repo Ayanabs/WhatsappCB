@@ -13,6 +13,24 @@ const FileSync = require('lowdb/adapters/FileSync');
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'config.json');
+const MEDIA_DIRS = [path.join(process.cwd(), 'uploads'), path.join(process.cwd(), 'posters')];
+
+/** Fields of a single countdown */
+const COUNTDOWN_DEFAULTS = {
+  enabled: false,
+  eventTitle: 'Event Countdown',
+  startDate: '',        // ISO string or "YYYY-MM-DDTHH:mm" for starting broadcast cycle anchor
+  targetDate: '',       // ISO string or "YYYY-MM-DDTHH:mm" for target deadline
+  messageTemplate: 'Only {days} days and {hours} hours left.',
+  intervalHours: 24,    // how often to broadcast the countdown (hours)
+  dailyTime: '',        // HH:MM in Sri Lanka time
+  scheduleFrom: null,   // Ignore slots before this schedule was activated
+  dailyContent: {},     // Optional content overrides by Sri Lanka calendar date
+  lastSentAt: null,
+  mediaPath: null,      // Absolute path to poster file
+  mediaUrl: null,       // Web HUD URL to preview poster
+  mediaName: null,      // Original filename of poster
+};
 
 /** Default database schema — all fields are runtime-configurable via HUD */
 const DEFAULT_STATE = {
@@ -24,22 +42,11 @@ const DEFAULT_STATE = {
     name: '',
   },
 
-  // Countdown module
-  countdown: {
-    enabled: false,
-    eventTitle: 'Event Countdown',
-    startDate: '',        // ISO string or "YYYY-MM-DDTHH:mm" for starting broadcast cycle anchor
-    targetDate: '',       // ISO string or "YYYY-MM-DDTHH:mm" for target deadline
-    messageTemplate: 'Only {days} days and {hours} hours left.',
-    intervalHours: 24,    // how often to broadcast the countdown (hours)
-    dailyTime: '',        // HH:MM in Sri Lanka time
-    scheduleFrom: null,   // Ignore slots before this schedule was activated
-    dailyContent: {},     // Optional content overrides by Sri Lanka calendar date
-    lastSentAt: null,
-    mediaPath: null,      // Absolute path to poster file
-    mediaUrl: null,       // Web HUD URL to preview poster
-    mediaName: null,      // Original filename of poster
-  },
+  // Countdowns (array of countdown objects, each with an id and COUNTDOWN_DEFAULTS fields)
+  countdowns: [],
+
+  // Saved poster library (PNG/media generated from SVG or uploaded)
+  savedPosters: [],
 
   // One-time scheduled posts (array of post objects)
   scheduledPosts: [],
@@ -49,18 +56,6 @@ const DEFAULT_STATE = {
       scheduledAt: string (ISO "YYYY-MM-DD HH:MM"),
       message: string,
       sent: boolean
-    }
-  */
-
-  // Daily repeating alarms (array)
-  dailyAlarms: [],
-  /* Alarm schema:
-    {
-      id: string,
-      time: string ("HH:MM"),
-      message: string,
-      enabled: boolean,
-      lastFiredDate: string | null  // "YYYY-MM-DD" of last fire
     }
   */
 
@@ -119,10 +114,46 @@ function getDb() {
   const adapter = new FileSync(DB_FILE);
   _db = low(adapter);
 
+  // Earlier versions stored a single countdown object and daily alarms.
+  const legacy = _db.get('countdown').value();
+  if (legacy && !Array.isArray(_db.get('countdowns').value())) {
+    _db.set('countdowns', legacy.targetDate ? [{ ...COUNTDOWN_DEFAULTS, ...legacy, id: 'countdown-1' }] : []).write();
+  }
+  _db.unset('countdown').write();
+  _db.unset('dailyAlarms').write();
+
   // Merge defaults — preserves existing values
   _db.defaultsDeep(DEFAULT_STATE).write();
+  repairMediaPaths(_db);
 
   return _db;
+}
+
+/**
+ * Point stored media paths at this machine's uploads or posters folder when the
+ * saved path no longer exists, for example a Windows path in a config.json that
+ * was copied to a Linux server or into a Docker volume.
+ * @param {import('lowdb').LowdbSync} db
+ */
+function repairMediaPaths(db) {
+  let changed = false;
+  const repair = (item) => {
+    if (!item?.mediaPath || fse.existsSync(item.mediaPath)) return;
+    // win32.basename understands both / and \ separators.
+    const name = path.win32.basename(item.mediaPath);
+    const local = MEDIA_DIRS.map((dir) => path.join(dir, name)).find((file) => fse.existsSync(file));
+    if (local) {
+      item.mediaPath = local;
+      changed = true;
+    }
+  };
+  const state = db.getState();
+  for (const countdown of state.countdowns || []) {
+    repair(countdown);
+    Object.values(countdown.dailyContent || {}).forEach(repair);
+  }
+  (state.scheduledPosts || []).forEach(repair);
+  if (changed) db.write();
 }
 
 /**
@@ -149,4 +180,4 @@ function getTargetGroups() {
   return Array.from(results);
 }
 
-module.exports = { getDb, getTargetGroups };
+module.exports = { getDb, getTargetGroups, COUNTDOWN_DEFAULTS };

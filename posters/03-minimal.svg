@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Minimal countdown poster</title>
+  <desc id="desc">A pale green poster with dark green type and an oversized day count.</desc>
+  <rect width="1080" height="1080" fill="#e7ede2"/>
+  <rect x="60" y="60" width="960" height="960" fill="none" stroke="#a7b8a4" stroke-width="2"/>
+  <path d="M120 222 H960 M120 813 H960" stroke="#a7b8a4" stroke-width="2"/>
+  <circle cx="900" cy="145" r="32" fill="#c5d9bd"/>
+  <path d="M886 145 h28 M900 131 v28" stroke="#315642" stroke-width="2"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#244d3a">
+    <!-- Edit the text between each pair of text tags. -->
+    <text id="eyebrow" x="120" y="135" font-size="23" font-weight="700" letter-spacing="4">AN EVENT TO LOOK FORWARD TO</text>
+    <text id="event-title" x="120" y="188" font-size="43" font-weight="700">YOUR EVENT NAME</text>
+    <text id="days" x="112" y="680" font-size="420" font-weight="700">07</text>
+    <text id="days-label" x="130" y="755" font-size="46" font-weight="700" letter-spacing="6">DAYS TO GO</text>
+    <text id="event-date" x="120" y="884" font-size="34" font-weight="700">24 OCTOBER</text>
+    <text id="event-details" x="120" y="932" font-size="26">6:00 PM  ·  YOUR VENUE</text>
+    <text x="960" y="932" text-anchor="end" font-size="22" letter-spacing="3">SEE YOU THERE</text>
+  </g>
+</svg>

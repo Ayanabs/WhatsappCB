@@ -37,6 +37,33 @@ function matchingCounter(secret, code, now = Date.now()) {
 let failures = 0;
 let blockedUntil = 0;
 let lastCounter = -1;
+let pendingSetup = null;
+
+function isConfigured() { return fs.existsSync(configPath); }
+
+function beginSetup() {
+  if (isConfigured()) throw new Error('Authenticator approval is already enabled.');
+  const secret = crypto.randomBytes(20);
+  const token = crypto.randomBytes(32).toString('hex');
+  pendingSetup = { secret, token, expires: Date.now() + 5 * 60000, attempts: 0 };
+  const key = encodeBase32(secret);
+  const uri = `otpauth://totp/${encodeURIComponent('Countdown Bot:Approval')}?secret=${key}&issuer=${encodeURIComponent('Countdown Bot')}&algorithm=SHA1&digits=6&period=30`;
+  return { token, key, uri };
+}
+
+function confirmSetup(token, code) {
+  if (isConfigured()) throw new Error('Authenticator approval is already enabled.');
+  if (!pendingSetup || Date.now() >= pendingSetup.expires || token !== pendingSetup.token) {
+    throw new Error('Setup expired or is no longer valid. Start again.');
+  }
+  if (matchingCounter(pendingSetup.secret, code) === null) {
+    if (++pendingSetup.attempts >= 5) pendingSetup = null;
+    throw new Error('Invalid code. Check your authenticator and try again.');
+  }
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify({ secret: pendingSetup.secret.toString('hex') }), { flag: 'wx', mode: 0o600 });
+  pendingSetup = null;
+}
 function middleware(req, res, next) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   let config;
@@ -46,21 +73,16 @@ function middleware(req, res, next) {
     return res.status(503).json({ ok: false, error: 'Approval configuration could not be read.' });
   }
   if (Date.now() < blockedUntil) return res.status(429).json({ ok: false, error: 'Too many approval attempts. Try again later.' });
-  let password;
-  try { password = decodeURIComponent(req.get('X-Approval-Password') || ''); } catch (_) { password = ''; }
   const code = req.get('X-Approval-Code') || '';
-  if (!password || !code) return res.status(401).json({ ok: false, approvalRequired: true, error: 'Approval required.' });
+  if (!code) return res.status(401).json({ ok: false, approvalRequired: true, error: 'Approval required.' });
   try {
-    if (password.length > 256) throw new Error('Invalid password');
-    const expected = Buffer.from(config.passwordHash, 'hex');
-    const actual = crypto.scryptSync(password, Buffer.from(config.salt, 'hex'), 32);
     const counter = matchingCounter(Buffer.from(config.secret, 'hex'), code);
-    if (expected.length === actual.length && crypto.timingSafeEqual(expected, actual) && counter !== null && counter > lastCounter) {
+    if (counter !== null && counter > lastCounter) {
       lastCounter = counter; failures = 0; return next();
     }
   } catch (_) { /* Treat invalid credentials and malformed configuration as failure. */ }
   if (++failures >= 5) { blockedUntil = Date.now() + 60000; failures = 0; }
-  return res.status(401).json({ ok: false, approvalRequired: true, error: 'Invalid password or code, or code already used. Try a fresh code.' });
+  return res.status(401).json({ ok: false, approvalRequired: true, error: 'Invalid or already used code. Try a fresh code.' });
 }
 
-module.exports = { middleware, encodeBase32, matchingCounter, totp, configPath };
+module.exports = { middleware, encodeBase32, matchingCounter, totp, configPath, isConfigured, beginSetup, confirmSetup };

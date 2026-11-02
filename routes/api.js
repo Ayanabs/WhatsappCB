@@ -8,11 +8,14 @@
 
 const express  = require('express');
 const path     = require('path');
+const { URL }  = require('url');
 const fse      = require('fs-extra');
 const multer   = require('multer');
+const qrcode   = require('qrcode');
+const approval = require('../core/approvalAuth');
 
 const router = express.Router();
-const { getDb, getTargetGroups } = require('../core/db');
+const { getDb, getTargetGroups, COUNTDOWN_DEFAULTS } = require('../core/db');
 const {
   getClient,
   logoutClient,
@@ -30,7 +33,9 @@ const logger = require('../core/logger');
 // ─── Media upload storage ─────────────────────────────────────────────────────
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+const POSTERS_DIR = path.join(process.cwd(), 'posters');
 fse.ensureDirSync(UPLOADS_DIR);
+fse.ensureDirSync(POSTERS_DIR);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
@@ -56,9 +61,9 @@ const upload = multer({
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function sendState(res) {
+function sendState(res, extra = {}) {
   const db = getDb();
-  res.json({ ok: true, state: db.getState(), targetGroups: getTargetGroups() });
+  res.json({ ok: true, ...extra, state: db.getState(), targetGroups: getTargetGroups() });
 }
 
 function randomId() {
@@ -70,9 +75,55 @@ function randomId() {
   }
 }
 
+function resolveMedia(req) {
+  if (req.file) {
+    return {
+      mediaPath: req.file.path,
+      mediaUrl: `/uploads/${req.file.filename}`,
+      mediaName: req.file.originalname,
+    };
+  }
+  const rawUrl = req.body.mediaUrl || req.body.posterUrl;
+  if (rawUrl && typeof rawUrl === 'string') {
+    const baseName = path.basename(rawUrl.trim());
+    const candidateUploads = path.join(UPLOADS_DIR, baseName);
+    const candidatePosters = path.join(POSTERS_DIR, baseName);
+    if (fse.existsSync(candidateUploads)) {
+      return {
+        mediaPath: candidateUploads,
+        mediaUrl: `/uploads/${baseName}`,
+        mediaName: req.body.mediaName || baseName,
+      };
+    }
+    if (fse.existsSync(candidatePosters)) {
+      return {
+        mediaPath: candidatePosters,
+        mediaUrl: `/posters/${baseName}`,
+        mediaName: req.body.mediaName || baseName,
+      };
+    }
+  }
+  return { mediaPath: null, mediaUrl: null, mediaName: null };
+}
+
 function resolveMediaPath(file) {
   if (!file) return null;
   return file.path;
+}
+
+/**
+ * Delete an uploaded file once nothing refers to it any more. Library posters
+ * and files shared with other countdowns or posts are kept.
+ */
+async function removeUnusedUpload(filePath) {
+  if (!filePath || !path.resolve(filePath).startsWith(UPLOADS_DIR + path.sep)) return;
+  const db = getDb();
+  const name = path.basename(filePath);
+  const used = (db.get('savedPosters').value() || []).some((p) => p.filename === name) ||
+    (db.get('scheduledPosts').value() || []).some((p) => p.mediaPath === filePath) ||
+    (db.get('countdowns').value() || []).some((c) => c.mediaPath === filePath ||
+      Object.values(c.dailyContent || {}).some((day) => day.mediaPath === filePath));
+  if (!used) await fse.remove(filePath).catch(() => {});
 }
 
 // ─── GET /api/state ───────────────────────────────────────────────────────────
@@ -88,6 +139,41 @@ router.get('/state', (req, res) => {
 // ─── GET /api/status ──────────────────────────────────────────────────────────
 router.get('/status', (req, res) => {
   res.json({ ok: true, ready: isReady(), hasQr: !!getLastQr() });
+});
+
+router.get('/approval/status', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, enabled: approval.isConfigured(), ready: isReady() });
+});
+
+// Initial enrollment is only available on the computer running the bot.
+function localEnrollment(req, res, next) {
+  const remote = req.socket.remoteAddress;
+  let localOrigin = true;
+  if (req.get('origin')) {
+    try { localOrigin = ['localhost', '127.0.0.1', '[::1]'].includes(new URL(req.get('origin')).hostname); }
+    catch (_) { localOrigin = false; }
+  }
+  if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remote) || !localOrigin) {
+    return res.status(403).json({ ok: false, error: 'Set up the authenticator from the bot computer using localhost.' });
+  }
+  if (!isReady()) return res.status(400).json({ ok: false, error: 'Connect WhatsApp before setting up approval.' });
+  res.set('Cache-Control', 'no-store');
+  next();
+}
+
+router.post('/approval/setup', localEnrollment, async (_req, res) => {
+  try {
+    const setup = approval.beginSetup();
+    res.json({ ok: true, token: setup.token, key: setup.key, qrImage: await qrcode.toDataURL(setup.uri) });
+  } catch (err) { res.status(400).json({ ok: false, error: err.message }); }
+});
+
+router.post('/approval/confirm', localEnrollment, (req, res) => {
+  try {
+    approval.confirmSetup(req.body.token, req.body.code);
+    res.json({ ok: true });
+  } catch (err) { res.status(400).json({ ok: false, error: err.message }); }
 });
 
 // ─── GET /api/groups ──────────────────────────────────────────────────────────
@@ -183,14 +269,15 @@ router.post('/group', (req, res) => {
 router.post('/send-test', upload.single('media'), async (req, res) => {
   try {
     const { target, message } = req.body;
-    if (!message && !req.file) {
+    const media = resolveMedia(req);
+    const mediaPath = media.mediaPath;
+    if (!message && !mediaPath) {
       return res.status(400).json({ ok: false, error: 'Message text or media is required' });
     }
     if (!isReady()) {
       return res.status(400).json({ ok: false, error: 'WhatsApp client is not ready. Please verify connection.' });
     }
 
-    const mediaPath = resolveMediaPath(req.file);
     let targets = [];
 
     if (!target || target === '__ALL__' || target === 'ALL') {
@@ -236,15 +323,25 @@ router.post('/send-test', upload.single('media'), async (req, res) => {
   }
 });
 
-// ─── POST /api/countdown ─────────────────────────────────────────────────────
-async function saveCountdownConfig(req) {
+// ─── Countdowns ──────────────────────────────────────────────────────────────
+/** Create a countdown (no id) or update an existing one from the request body. */
+async function saveCountdownConfig(req, id) {
   const { enabled, eventTitle, startDate, targetDate, messageTemplate, intervalHours, dailyTime, clearMedia } = req.body;
   const db = getDb();
-  const currentCfg = db.get('countdown').value() || {};
+  const existing = id ? db.get('countdowns').find({ id }).value() : null;
+  if (id && !existing) throw Object.assign(new Error('Countdown not found'), { status: 404 });
+  const currentCfg = existing || {};
   const patch = {};
 
   for (const [field, value] of Object.entries({ startDate, targetDate })) {
     if (value && isNaN(new Date(value).getTime())) throw new Error(`Invalid ${field}`);
+  }
+  if (!existing && !targetDate) throw new Error('Set a target date for the new countdown');
+  // A start after the target would keep the countdown from ever sending.
+  const effectiveStart = typeof startDate === 'string' ? startDate : currentCfg.startDate;
+  const effectiveTarget = typeof targetDate === 'string' ? targetDate : currentCfg.targetDate;
+  if (effectiveStart && effectiveTarget && new Date(effectiveStart) >= new Date(effectiveTarget)) {
+    throw Object.assign(new Error('The start date must be before the target date'), { status: 400 });
   }
 
   if (typeof eventTitle === 'string')      patch.eventTitle      = eventTitle.trim();
@@ -266,15 +363,15 @@ async function saveCountdownConfig(req) {
     patch.scheduleFrom = new Date().toISOString();
   }
 
-  // Handle poster file upload or removal
-  if (req.file) {
-    patch.mediaPath = req.file.path;
-    patch.mediaUrl  = `/uploads/${req.file.filename}`;
-    patch.mediaName = req.file.originalname;
+  // Handle poster file upload, library selection, or removal
+  const media = resolveMedia(req);
+  let removedMedia = null;
+  if (media.mediaPath) {
+    patch.mediaPath = media.mediaPath;
+    patch.mediaUrl  = media.mediaUrl;
+    patch.mediaName = media.mediaName;
   } else if (clearMedia === 'true' || clearMedia === true) {
-    if (currentCfg.mediaPath && await fse.pathExists(currentCfg.mediaPath)) {
-      await fse.remove(currentCfg.mediaPath).catch(() => {});
-    }
+    removedMedia = currentCfg.mediaPath;
     patch.mediaPath = null;
     patch.mediaUrl  = null;
     patch.mediaName = null;
@@ -288,34 +385,100 @@ async function saveCountdownConfig(req) {
     patch.lastSentAt = null;
   }
 
-  db.get('countdown').assign(patch).write();
+  if (existing) {
+    db.get('countdowns').find({ id }).assign(patch).write();
+  } else {
+    id = `countdown-${randomId()}`;
+    db.get('countdowns').push({ ...COUNTDOWN_DEFAULTS, dailyContent: {}, ...patch, id, createdAt: new Date().toISOString() }).write();
+  }
+  await removeUnusedUpload(removedMedia);
   broadcast('config:updated', db.getState());
-  return db.get('countdown').value();
+  return db.get('countdowns').find({ id }).value();
 }
 
-router.post('/countdown', upload.single('media'), async (req, res) => {
+function countdownError(res, label, err) {
+  logger.error(`[API] ${label} error:`, err.message);
+  res.status(err.status || 500).json({ ok: false, error: err.message });
+}
+
+// ─── POST /api/countdowns ────────────────────────────────────────────────────
+router.post('/countdowns', upload.single('media'), async (req, res) => {
   try {
     const cfg = await saveCountdownConfig(req);
+    sendState(res, { countdownId: cfg.id });
+  } catch (err) {
+    countdownError(res, 'POST /countdowns', err);
+  }
+});
+
+// ─── POST /api/countdowns[/:id]/broadcast ────────────────────────────────────
+/** Save the form (creating the countdown if it is new) and broadcast it immediately */
+router.post(['/countdowns/broadcast', '/countdowns/:id/broadcast'], upload.single('media'), async (req, res) => {
+  try {
+    if (!isReady()) {
+      return res.status(400).json({ ok: false, error: 'WhatsApp client is not ready' });
+    }
+    // Save the current form (including its new poster) without starting a
+    // separate automatic broadcast before the requested immediate broadcast.
+    const cfg = await saveCountdownConfig(req, req.params.id);
+    const result = await runCountdownCheck({ force: true, id: cfg.id });
+    if (result.sentCount > 0) {
+      res.json({ ok: true, countdownId: cfg.id, sentCount: result.sentCount, message: `Countdown sent to ${result.sentCount} group(s).`, state: getDb().getState() });
+    } else {
+      res.status(400).json({ ok: false, countdownId: cfg.id, error: result.error || 'No groups reached' });
+    }
+  } catch (err) {
+    countdownError(res, 'POST /countdowns/broadcast', err);
+  }
+});
+
+// ─── POST /api/countdowns/:id ────────────────────────────────────────────────
+router.post('/countdowns/:id', upload.single('media'), async (req, res) => {
+  try {
+    const cfg = await saveCountdownConfig(req, req.params.id);
+    sendState(res, { countdownId: cfg.id });
+  } catch (err) {
+    countdownError(res, 'POST /countdowns/:id', err);
+  }
+});
+
+// ─── DELETE /api/countdowns/:id ──────────────────────────────────────────────
+router.delete('/countdowns/:id', async (req, res) => {
+  try {
+    const db = getDb();
+    const cfg = db.get('countdowns').find({ id: req.params.id }).value();
+    if (!cfg) return res.status(404).json({ ok: false, error: 'Countdown not found' });
+    db.get('countdowns').remove({ id: cfg.id }).write();
+    for (const filePath of [cfg.mediaPath, ...Object.values(cfg.dailyContent || {}).map((day) => day.mediaPath)]) {
+      await removeUnusedUpload(filePath);
+    }
+    broadcast('config:updated', db.getState());
     sendState(res);
   } catch (err) {
-    logger.error('[API] POST /countdown error:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
+    countdownError(res, 'DELETE /countdowns/:id', err);
   }
 });
 
 // Each day's override is saved independently from the main countdown form.
-router.post('/countdown/days/:date', upload.single('media'), async (req, res) => {
-  const date = req.params.date;
+router.post('/countdowns/:id/days/:date', upload.single('media'), async (req, res) => {
+  const { id, date } = req.params;
   const dateMs = Date.parse(`${date}T00:00:00+05:30`);
-  const cfg = getDb().get('countdown').value() || {};
+  const db = getDb();
+  const cfg = db.get('countdowns').find({ id }).value();
+  if (!cfg) {
+    if (req.file) await fse.remove(req.file.path).catch(() => {});
+    return res.status(404).json({ ok: false, error: 'Countdown not found' });
+  }
   const localDay = (value) => {
     const ms = Date.parse(value);
     return Number.isFinite(ms) ? new Date(ms + 330 * 60000).toISOString().slice(0, 10) : '';
   };
+  // Without a start date the countdown runs from today.
+  const firstDay = localDay(cfg.startDate) || localDay(new Date().toISOString());
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(dateMs) || localDay(new Date(dateMs).toISOString()) !== date ||
-      !localDay(cfg.startDate) || !localDay(cfg.targetDate) || date < localDay(cfg.startDate) || date > localDay(cfg.targetDate)) {
+      !localDay(cfg.targetDate) || date < firstDay || date > localDay(cfg.targetDate)) {
     if (req.file) await fse.remove(req.file.path).catch(() => {});
-    return res.status(400).json({ ok: false, error: 'Save valid start and target dates first, then choose a date within that range.' });
+    return res.status(400).json({ ok: false, error: 'Save a valid target date first, then choose a date between the start and target dates.' });
   }
   const all = { ...(cfg.dailyContent || {}) };
   const old = all[date] || {};
@@ -324,48 +487,28 @@ router.post('/countdown/days/:date', upload.single('media'), async (req, res) =>
     messageTemplate: typeof req.body.messageTemplate === 'string' ? req.body.messageTemplate.trim() : '',
     mediaPath: old.mediaPath || null, mediaUrl: old.mediaUrl || null, mediaName: old.mediaName || null,
   };
-  if (req.file) {
-    entry.mediaPath = req.file.path;
-    entry.mediaUrl = `/uploads/${req.file.filename}`;
-    entry.mediaName = req.file.originalname;
+  const media = resolveMedia(req);
+  if (media.mediaPath) {
+    entry.mediaPath = media.mediaPath;
+    entry.mediaUrl = media.mediaUrl;
+    entry.mediaName = media.mediaName;
   } else if (req.body.clearMedia === 'true') {
     entry.mediaPath = entry.mediaUrl = entry.mediaName = null;
   }
   if (entry.eventTitle || entry.messageTemplate || entry.mediaPath) all[date] = entry;
   else delete all[date];
-  const db = getDb();
-  db.set('countdown.dailyContent', all).write();
+  db.get('countdowns').find({ id }).assign({ dailyContent: all }).write();
+  if (old.mediaPath && old.mediaPath !== entry.mediaPath) await removeUnusedUpload(old.mediaPath);
   broadcast('config:updated', db.getState());
   sendState(res);
-});
-
-// ─── POST /api/countdown/broadcast ───────────────────────────────────────────
-/** Force an immediate broadcast of the countdown message */
-router.post('/countdown/broadcast', upload.single('media'), async (req, res) => {
-  try {
-    if (!isReady()) {
-      return res.status(400).json({ ok: false, error: 'WhatsApp client is not ready' });
-    }
-    // Save the current form (including its new poster) without starting a
-    // separate automatic broadcast before the requested immediate broadcast.
-    await saveCountdownConfig(req);
-    const result = await runCountdownCheck({ force: true });
-    if (result.sentCount > 0) {
-      res.json({ ok: true, sentCount: result.sentCount, message: `Countdown sent to ${result.sentCount} group(s).`, state: getDb().getState() });
-    } else {
-      res.status(400).json({ ok: false, error: result.error || 'No groups reached' });
-    }
-  } catch (err) {
-    logger.error('[API] POST /countdown/broadcast error:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
-  }
 });
 
 // ─── POST /api/posts ──────────────────────────────────────────────────────────
 router.post('/posts', upload.single('media'), (req, res) => {
   try {
     const { scheduledAt, message = '' } = req.body;
-    if (!scheduledAt || (!message.trim() && !req.file)) {
+    const media = resolveMedia(req);
+    if (!scheduledAt || (!message.trim() && !media.mediaPath)) {
       return res.status(400).json({ ok: false, error: 'A scheduled time and message or attachment are required.' });
     }
     const scheduledDate = new Date(scheduledAt);
@@ -373,8 +516,9 @@ router.post('/posts', upload.single('media'), (req, res) => {
       return res.status(400).json({ ok: false, error: 'Invalid scheduled time.' });
     }
 
-    const mediaPath = resolveMediaPath(req.file);
-    const mediaUrl  = req.file ? `/uploads/${req.file.filename}` : null;
+    const mediaPath = media.mediaPath;
+    const mediaUrl  = media.mediaUrl;
+    const mediaName = media.mediaName;
 
     const db   = getDb();
     const post = {
@@ -383,7 +527,7 @@ router.post('/posts', upload.single('media'), (req, res) => {
       message: message.trim(),
       mediaPath,
       mediaUrl,
-      mediaName:   req.file ? req.file.originalname : null,
+      mediaName:   mediaName || (req.file ? req.file.originalname : null),
       sent:        false,
       sentAt:      null,
       createdAt:   new Date().toISOString(),
@@ -407,88 +551,12 @@ router.delete('/posts/:id', async (req, res) => {
     const db   = getDb();
     const post = db.get('scheduledPosts').find({ id }).value();
 
-    if (post?.mediaPath && await fse.pathExists(post.mediaPath)) {
-      await fse.remove(post.mediaPath);
-    }
-
     db.get('scheduledPosts').remove({ id }).write();
+    await removeUnusedUpload(post?.mediaPath);
     broadcast('config:updated', db.getState());
     sendState(res);
   } catch (err) {
     logger.error('[API] DELETE /posts/:id error:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-// ─── POST /api/alarms ─────────────────────────────────────────────────────────
-router.post('/alarms', upload.single('media'), (req, res) => {
-  try {
-    const { time, message, enabled } = req.body;
-    if (!time || !message) {
-      return res.status(400).json({ ok: false, error: 'time and message are required.' });
-    }
-
-    const mediaPath = resolveMediaPath(req.file);
-    const mediaUrl  = req.file ? `/uploads/${req.file.filename}` : null;
-
-    const db    = getDb();
-    const alarm = {
-      id:            randomId(),
-      time,
-      message,
-      mediaPath,
-      mediaUrl,
-      mediaName:     req.file ? req.file.originalname : null,
-      enabled:       enabled === undefined ? true : (enabled === 'true' || enabled === true),
-      lastFiredDate: null,
-      createdAt:     new Date().toISOString(),
-    };
-
-    db.get('dailyAlarms').push(alarm).write();
-    broadcast('config:updated', db.getState());
-    sendState(res);
-  } catch (err) {
-    logger.error('[API] POST /alarms error:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-// ─── PATCH /api/alarms/:id ────────────────────────────────────────────────────
-router.patch('/alarms/:id', (req, res) => {
-  try {
-    const { id } = req.params;
-    const { enabled, time, message } = req.body;
-    const db    = getDb();
-    const patch = {};
-    if (typeof enabled === 'boolean') patch.enabled = enabled;
-    if (typeof time    === 'string')  patch.time    = time;
-    if (typeof message === 'string')  patch.message = message;
-
-    db.get('dailyAlarms').find({ id }).assign(patch).write();
-    broadcast('config:updated', db.getState());
-    sendState(res);
-  } catch (err) {
-    logger.error('[API] PATCH /alarms/:id error:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-// ─── DELETE /api/alarms/:id ───────────────────────────────────────────────────
-router.delete('/alarms/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const db    = getDb();
-    const alarm = db.get('dailyAlarms').find({ id }).value();
-
-    if (alarm?.mediaPath && await fse.pathExists(alarm.mediaPath)) {
-      await fse.remove(alarm.mediaPath);
-    }
-
-    db.get('dailyAlarms').remove({ id }).write();
-    broadcast('config:updated', db.getState());
-    sendState(res);
-  } catch (err) {
-    logger.error('[API] DELETE /alarms/:id error:', err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
@@ -701,6 +769,123 @@ router.post('/worker/tick', async (req, res) => {
     res.json({ ok: true, message: 'Worker tick executed.' });
   } catch (err) {
     logger.error('[API] POST /worker/tick error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ─── Poster Library Endpoints ───────────────────────────────────────────────
+
+/**
+ * GET /api/posters/templates
+ * Returns list of SVG templates available in the /posters folder.
+ */
+router.get('/posters/templates', async (_req, res) => {
+  try {
+    fse.ensureDirSync(POSTERS_DIR);
+    const files = await fse.readdir(POSTERS_DIR);
+    const templates = [];
+    for (const file of files) {
+      if (file.toLowerCase().endsWith('.svg')) {
+        const filePath = path.join(POSTERS_DIR, file);
+        const content = await fse.readFile(filePath, 'utf8');
+        const displayName = file
+          .replace(/\.svg$/i, '')
+          .replace(/[-_]/g, ' ')
+          .replace(/\b\w/g, (c) => c.toUpperCase());
+        templates.push({
+          id: `tpl-${file}`,
+          filename: file,
+          name: displayName,
+          url: `/posters/${file}`,
+          content,
+        });
+      }
+    }
+    res.json({ ok: true, templates });
+  } catch (err) {
+    logger.error('[API] GET /posters/templates error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/posters/library
+ * Returns all saved PNG/image posters from the database and uploads directory.
+ */
+router.get('/posters/library', async (_req, res) => {
+  try {
+    const db = getDb();
+    const saved = db.get('savedPosters').value() || [];
+    const postersMap = new Map();
+
+    // 1. Add tracked saved posters
+    for (const p of saved) {
+      if (p.filename && (await fse.pathExists(path.join(UPLOADS_DIR, p.filename)))) {
+        postersMap.set(p.filename, {
+          id: p.id || `poster-${p.filename}`,
+          name: p.name || p.filename,
+          filename: p.filename,
+          mediaUrl: p.mediaUrl || `/uploads/${p.filename}`,
+          createdAt: p.createdAt || new Date().toISOString(),
+        });
+      }
+    }
+
+    // 2. Scan uploads directory for any generated posters / images
+    fse.ensureDirSync(UPLOADS_DIR);
+    const uploadFiles = await fse.readdir(UPLOADS_DIR);
+    for (const f of uploadFiles) {
+      if (/\.(png|jpe?g|webp)$/i.test(f) && !postersMap.has(f)) {
+        const cleanName = f
+          .replace(/^\d+-/, '')
+          .replace(/\.[^.]+$/, '')
+          .replace(/[-_]/g, ' ');
+        postersMap.set(f, {
+          id: `upload-${f}`,
+          name: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
+          filename: f,
+          mediaUrl: `/uploads/${f}`,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    res.json({ ok: true, posters: Array.from(postersMap.values()) });
+  } catch (err) {
+    logger.error('[API] GET /posters/library error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/posters/save
+ * Saves a rendered PNG poster to the library.
+ */
+router.post('/posters/save', upload.single('media'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: 'Poster image file is required.' });
+    }
+    const name = (req.body.name && req.body.name.trim()) || req.file.originalname.replace(/\.[^.]+$/, '');
+    const poster = {
+      id: `poster-${randomId()}`,
+      name,
+      filename: req.file.filename,
+      mediaPath: req.file.path,
+      mediaUrl: `/uploads/${req.file.filename}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    const db = getDb();
+    if (!db.has('savedPosters').value()) {
+      db.set('savedPosters', []).write();
+    }
+    db.get('savedPosters').push(poster).write();
+    broadcast('config:updated', db.getState());
+
+    res.json({ ok: true, poster });
+  } catch (err) {
+    logger.error('[API] POST /posters/save error:', err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

@@ -10,7 +10,6 @@
 const logger = require('./logger');
 const { runCountdownCheck } = require('./countdown');
 const { runScheduledPostsCheck } = require('./scheduledPosts');
-const { runDailyAlarmsCheck } = require('./dailyAlarms');
 const pluginRegistry = require('../plugins');
 
 const DEFAULT_INTERVAL_MS = parseInt(process.env.WORKER_INTERVAL_MS, 10) || 5_000;
@@ -34,7 +33,6 @@ async function tick() {
     for (const [name, run] of [
       ['ScheduledPosts', runScheduledPostsCheck],
       ['Countdown', runCountdownCheck],
-      ['DailyAlarms', runDailyAlarmsCheck],
     ]) {
       try {
         await run();

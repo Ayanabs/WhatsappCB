@@ -26,13 +26,13 @@ function load(file, mocks = {}, globals = {}) {
 function fixture() {
   const db = low(new Memory()).setState({
     targetGroups: ['Group A'], groupTarget: { name: '' },
-    countdown: {
-      enabled: false, eventTitle: 'Science Exhibition',
+    countdowns: [{
+      id: 'cd-1', enabled: false, eventTitle: 'Science Exhibition',
       targetDate: new Date(Date.now() + 2 * 86400000).toISOString(),
       startDate: '', messageTemplate: 'Time remaining: {days} days, {hours} hours and {minutes} minutes.',
       intervalHours: 24,
-    },
-    scheduledPosts: [], dailyAlarms: [], botCommands: { enabled: false, commands: [] },
+    }],
+    scheduledPosts: [], savedPosters: [], botCommands: { enabled: false, commands: [] },
   });
   const sends = [];
   const events = [];

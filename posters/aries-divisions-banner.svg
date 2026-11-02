@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="banner-title banner-desc">
+<title id="banner-title">ARIES 2026 Multi-Division Abstract Submission Banner</title>
+<desc id="banner-desc">Professional landscape banner for ACCIMT ARIES 2026 embodying the essence of IT, Space, Astronomy, Electronics, and Communication divisions.</desc>
+<defs>
+  <!-- Background Gradients -->
+  <linearGradient id="ban-bg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#040b15"/>
+    <stop offset="40%" stop-color="#071728"/>
+    <stop offset="80%" stop-color="#092036"/>
+    <stop offset="100%" stop-color="#0d2b42"/>
+  </linearGradient>
+  <linearGradient id="ban-card" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#0f2b40" stop-opacity="0.9"/>
+    <stop offset="100%" stop-color="#081b29" stop-opacity="0.75"/>
+  </linearGradient>
+  <linearGradient id="ban-highlight" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0%" stop-color="#69bdb6"/>
+    <stop offset="50%" stop-color="#a1d2cd"/>
+    <stop offset="100%" stop-color="#d3f1e7"/>
+  </linearGradient>
+  <radialGradient id="ban-glow" cx="65%" cy="50%" r="55%">
+    <stop offset="0%" stop-color="#69bdb6" stop-opacity="0.25"/>
+    <stop offset="40%" stop-color="#144249" stop-opacity="0.14"/>
+    <stop offset="75%" stop-color="#071b2e" stop-opacity="0.05"/>
+    <stop offset="100%" stop-color="#040b15" stop-opacity="0"/>
+  </radialGradient>
+</defs>
+
+<!-- Deep Space Background -->
+<rect width="1200" height="630" fill="url(#ban-bg)"/>
+
+<!-- Grid Mesh -->
+<g stroke="#69bdb6" stroke-width="0.7" opacity="0.1" fill="none">
+  <path d="M0 105h1200M0 210h1200M0 315h1200M0 420h1200M0 525h1200"/>
+  <path d="M120 0v630M240 0v630M360 0v630M480 0v630M600 0v630M720 0v630M840 0v630M960 0v630M1080 0v630"/>
+</g>
+
+<!-- Top Status Line -->
+<g transform="translate(60, 28)" fill="#69bdb6" font-family="'Courier New', monospace" font-size="10" opacity="0.65">
+  <text x="0" y="0">ACCIMT // ARIES 2026 CALL FOR ABSTRACTS</text>
+  <text x="1080" y="0" text-anchor="end">PEER REVIEWED // 5 DIVISIONS</text>
+</g>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- LEFT COLUMN: INSTITUTION, TITLES, COUNTDOWN & DEADLINES             -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<g transform="translate(60, 58)">
+  <!-- Header Title -->
+  <text id="ban-event-tag" data-label="Banner Event Tag" x="0" y="24" fill="#f4f6f4" font-family="Arial, sans-serif" font-weight="900" font-size="26" letter-spacing="4">ARIES 2026</text>
+  <text id="ban-event-fullname" data-label="Banner Event Full Name" x="0" y="52" fill="#a9bac1" font-family="Arial, sans-serif" font-size="14">Arthur C. Clarke Research Innovation Exhibition and Symposium</text>
+  <path d="M0 68h480" stroke="#a4c2c1" stroke-opacity="0.3" stroke-width="1"/>
+
+  <!-- Hero Titles -->
+  <text id="ban-category" data-label="Banner Track Overline" x="0" y="96" fill="#8bcac2" font-family="Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="3">RESEARCH  /  INNOVATION  /  TECHNOLOGY</text>
+  <text id="ban-title-1" data-label="Banner Title Line 1" x="0" y="136" fill="#f5f7f5" font-family="Arial, sans-serif" font-size="40" font-weight="800">Abstract Submission</text>
+  <text id="ban-title-2" data-label="Banner Title Line 2" x="0" y="176" fill="#a9bac1" font-family="Arial, sans-serif" font-size="20">The deadline is approaching.</text>
+  <path d="M0 192h50" stroke="#79c4ba" stroke-width="3"/>
+
+  <!-- Live Countdown Card -->
+  <g transform="translate(0, 215)">
+    <rect width="480" height="136" rx="8" fill="url(#ban-card)" stroke="#69bdb6" stroke-width="1.2" stroke-opacity="0.4"/>
+    <rect width="4" height="136" rx="2" fill="#79c4ba"/>
+
+    <!-- Countdown Digits -->
+    <text id="countdown-days" data-label="Banner Countdown Number" x="18" y="106" fill="url(#ban-highlight)" font-family="Arial, sans-serif" font-size="112" font-weight="900" letter-spacing="-2">5</text>
+
+    <!-- Days & Deadline Info -->
+    <g transform="translate(108, 22)">
+      <text id="ban-days-unit" data-label="Banner Days Unit" x="0" y="22" fill="#f4f6f4" font-family="Arial, sans-serif" font-size="20" font-weight="800" letter-spacing="3">DAYS REMAINING</text>
+      <text id="ban-deadline-head" data-label="Banner Deadline Header" x="0" y="44" fill="#8bcac2" font-family="'Courier New', monospace" font-size="11" font-weight="700" letter-spacing="1">SUBMISSION DEADLINE:</text>
+      <text id="deadline" data-label="Banner Submission Deadline" x="0" y="70" fill="#f5f7f5" font-family="Arial, sans-serif" font-size="20" font-weight="700">06 NOVEMBER 2026</text>
+      <path d="M0 80h250" stroke="#69bdb6" stroke-width="0.8" stroke-opacity="0.3"/>
+      <text x="0" y="98" fill="#a9bac1" font-family="Arial, sans-serif" font-size="12">Feedback: 23<tspan font-size="9" dy="-4">RD</tspan><tspan font-size="12" dy="4"> Nov</tspan> · Amended: 02<tspan font-size="9" dy="-4">ND</tspan><tspan font-size="12" dy="4"> Dec</tspan> · Symposium: 09<tspan font-size="9" dy="-4">TH</tspan><tspan font-size="12" dy="4"> Dec</tspan></text>
+    </g>
+  </g>
+
+  <!-- Participating Divisions Essence Strip -->
+  <g transform="translate(0, 382)" fill="#8bcac2" font-family="'Courier New', monospace" font-size="10" opacity="0.85">
+    <text x="0" y="0">[IT]</text>
+    <text x="60" y="0">[SPACE]</text>
+    <text x="140" y="0">[ASTRONOMY]</text>
+    <text x="245" y="0">[ELECTRONICS]</text>
+    <text x="365" y="0">[COMMUNICATION]</text>
+  </g>
+
+  <!-- Footer Info -->
+  <text x="0" y="420" fill="#a9bac1" font-family="Arial, sans-serif" font-size="12">Arthur C. Clarke Institute for Modern Technologies // Sri Lanka</text>
+  <text x="0" y="440" fill="#8bcac2" font-family="'Courier New', monospace" font-size="11" font-weight="700">PORTAL // WWW.ACCIMT.AC.LK</text>
+</g>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- RIGHT COLUMN: MULTI-DIVISION TECHNOLOGICAL TAPESTRY (X=875, Y=315) -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<g id="banner-tech-nexus" transform="translate(875, 315)">
+
+  <!-- Nexus Ambient Radial Glow -->
+  <circle cx="0" cy="0" r="280" fill="url(#ban-glow)"/>
+
+  <!-- ── 1. ASTRONOMY: TELESCOPE SPIDER APERTURE & STARBURSTS ── -->
+  <g id="ban-astronomy">
+    <!-- Celestial RA/DEC Ring -->
+    <circle r="260" fill="none" stroke="#69bdb6" stroke-width="0.9" stroke-dasharray="3 6" opacity="0.3"/>
+    <!-- Primary Mirror Aperture & Spider Vanes (Top-Right) -->
+    <g transform="translate(130, -110)">
+      <circle r="65" fill="#071829" fill-opacity="0.4" stroke="#79c4ba" stroke-width="1.4" stroke-dasharray="10 6" opacity="0.5"/>
+      <line x1="-65" y1="0" x2="-9" y2="0" stroke="#d3f1e7" stroke-width="1.2" opacity="0.7"/>
+      <line x1="9" y1="0" x2="65" y2="0" stroke="#d3f1e7" stroke-width="1.2" opacity="0.7"/>
+      <line x1="0" y1="-65" x2="0" y2="-9" stroke="#d3f1e7" stroke-width="1.2" opacity="0.7"/>
+      <line x1="0" y1="9" x2="0" y2="65" stroke="#d3f1e7" stroke-width="1.2" opacity="0.7"/>
+      <circle r="9" fill="#091f33" stroke="#d3f1e7" stroke-width="1.4"/>
+      <circle r="3.5" fill="#69bdb6"/>
+      <text x="0" y="-74" fill="#d3f1e7" font-family="'Courier New', monospace" font-size="8" font-weight="700" text-anchor="middle">ASTRONOMY // OPTICS</text>
+    </g>
+    <!-- 8-Point Diffraction Starburst -->
+    <g transform="translate(190, -180)" stroke="#d3f1e7">
+      <path d="M0 -20v40M-20 0h40" stroke-width="1.2"/>
+      <path d="M-10 -10l20 20M-10 10l20 -20" stroke-width="0.8" stroke="#a1d2cd"/>
+      <circle r="2.5" fill="#ffffff" stroke="none"/>
+    </g>
+    <!-- Constellation Triangulation -->
+    <path d="M190 -180 L130 -110 L40 -160 Z" fill="none" stroke="#69bdb6" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.4"/>
+  </g>
+
+  <!-- ── 2. SPACE: GEOSTATIONARY ORBIT & RESEARCH SATELLITE ── -->
+  <g id="ban-space" transform="rotate(-24)" fill="none">
+    <!-- Sweeping Orbit Belt -->
+    <ellipse cx="0" cy="0" rx="285" ry="95" stroke="#79c4ba" stroke-width="1.8" opacity="0.6"/>
+    <ellipse cx="0" cy="0" rx="285" ry="95" stroke="#d3f1e7" stroke-width="0.8" stroke-dasharray="10 8" opacity="0.45"/>
+    <ellipse cx="0" cy="0" rx="300" ry="102" stroke="#69bdb6" stroke-width="0.6" stroke-dasharray="3 5" opacity="0.25"/>
+
+    <!-- Research Satellite Bus -->
+    <g id="ban-sat" transform="translate(210, -65) rotate(45)">
+      <!-- Hexagonal Avionics Core -->
+      <polygon points="-9,-12 9,-12 12,0 9,12 -9,12 -12,0" fill="#091f33" stroke="#79c4ba" stroke-width="1.4"/>
+      <!-- Twin Multi-Cell Solar Arrays -->
+      <g transform="translate(-12, 0)">
+        <line x1="0" y1="0" x2="-8" y2="0" stroke="#a1d2cd" stroke-width="2"/>
+        <rect x="-36" y="-10" width="28" height="20" rx="1.5" fill="#071b2e" stroke="#79c4ba" stroke-width="1.2"/>
+        <line x1="-22" y1="-10" x2="-22" y2="10" stroke="#69bdb6" stroke-width="0.6" opacity="0.7"/>
+        <line x1="-36" y1="0" x2="-8" y2="0" stroke="#69bdb6" stroke-width="0.6" opacity="0.7"/>
+      </g>
+      <g transform="translate(12, 0)">
+        <line x1="0" y1="0" x2="8" y2="0" stroke="#a1d2cd" stroke-width="2"/>
+        <rect x="8" y="-10" width="28" height="20" rx="1.5" fill="#071b2e" stroke="#79c4ba" stroke-width="1.2"/>
+        <line x1="22" y1="-10" x2="22" y2="10" stroke="#69bdb6" stroke-width="0.6" opacity="0.7"/>
+        <line x1="8" y1="0" x2="36" y2="0" stroke="#69bdb6" stroke-width="0.6" opacity="0.7"/>
+      </g>
+      <!-- Parabolic Nadir Antenna -->
+      <path d="M-8 12 Q0 22 8 12" stroke="#d3f1e7" stroke-width="1.4"/>
+      <circle cx="0" cy="18" r="2" fill="#d3f1e7"/>
+      <text x="0" y="-18" fill="#d3f1e7" font-family="'Courier New', monospace" font-size="8" font-weight="700" text-anchor="middle">SPACE // SATELLITE</text>
+    </g>
+  </g>
+
+  <!-- ── 3. COMMUNICATION: GROUND DISH & RF WAVE PROPAGATION ── -->
+  <g id="ban-comm">
+    <!-- Ground Parabolic Tracking Dish (Centered at X=-120, Y=110) -->
+    <g transform="translate(-120, 110) rotate(-40)">
+      <path d="M-10 26 L0 14 L10 26 Z" fill="#091f33" stroke="#69bdb6" stroke-width="1.2"/>
+      <line x1="-16" y1="26" x2="16" y2="26" stroke="#a1d2cd" stroke-width="1.5"/>
+      <!-- Reflector Dish -->
+      <path d="M-26 -8 Q0 18 26 -8" fill="none" stroke="#79c4ba" stroke-width="2.2"/>
+      <!-- Cassegrain Sub-Reflector -->
+      <line x1="-20" y1="-5" x2="0" y2="-18" stroke="#d3f1e7" stroke-width="1.1"/>
+      <line x1="20" y1="-5" x2="0" y2="-18" stroke="#d3f1e7" stroke-width="1.1"/>
+      <circle cx="0" cy="-18" r="2.5" fill="#ffffff"/>
+      <text x="0" y="38" fill="#d3f1e7" font-family="'Courier New', monospace" font-size="8" font-weight="700" text-anchor="middle">COMM // RF DISH</text>
+    </g>
+
+    <!-- Concentric RF Wavefront Ripples -->
+    <g transform="translate(-120, 110) rotate(-40)" fill="none">
+      <path d="M-18 -28 A32 32 0 0 1 18 -28" stroke="#d3f1e7" stroke-width="1.4" opacity="0.75"/>
+      <path d="M-28 -44 A48 48 0 0 1 28 -44" stroke="#79c4ba" stroke-width="1.2" stroke-dasharray="5 3" opacity="0.6"/>
+      <path d="M-40 -60 A68 68 0 0 1 40 -60" stroke="#69bdb6" stroke-width="1" stroke-dasharray="8 4" opacity="0.45"/>
+      <path d="M-52 -78 A90 90 0 0 1 52 -78" stroke="#a1d2cd" stroke-width="0.8" stroke-dasharray="10 5" opacity="0.3"/>
+    </g>
+
+    <!-- Directional Carrier Uplink Beam (Ground Dish -> Orbit Sat) -->
+    <line x1="-120" y1="110" x2="140" y2="-130" stroke="#d3f1e7" stroke-width="1.4" stroke-dasharray="6 4" opacity="0.75"/>
+    <circle cx="-50" cy="50" r="2.5" fill="#ffffff"/>
+    <circle cx="20" cy="-20" r="2.5" fill="#ffffff"/>
+  </g>
+
+  <!-- ── 4. ELECTRONICS: SILICON IC PACKAGE & 45° PCB BUS ── -->
+  <g id="ban-electronics" transform="translate(-130, -60)">
+    <!-- IC Microprocessor Package -->
+    <rect x="-22" y="-22" width="44" height="44" rx="3" fill="#061524" stroke="#79c4ba" stroke-width="1.5"/>
+    <rect x="-12" y="-12" width="24" height="24" fill="#0a253a" stroke="#69bdb6" stroke-width="1"/>
+    <circle cx="-16" cy="-16" r="2" fill="#d3f1e7"/>
+
+    <!-- Lead Pins -->
+    <g stroke="#d3f1e7" stroke-width="1.2">
+      <line x1="-14" y1="-22" x2="-14" y2="-27"/><line x1="-7" y1="-22" x2="-7" y2="-27"/><line x1="0" y1="-22" x2="0" y2="-27"/><line x1="7" y1="-22" x2="7" y2="-27"/><line x1="14" y1="-22" x2="14" y2="-27"/>
+      <line x1="-14" y1="22" x2="-14" y2="27"/><line x1="-7" y1="22" x2="-7" y2="27"/><line x1="0" y1="22" x2="0" y2="27"/><line x1="7" y1="22" x2="7" y2="27"/><line x1="14" y1="22" x2="14" y2="27"/>
+      <line x1="-22" y1="-14" x2="-27" y2="-14"/><line x1="-22" y1="-7" x2="-27" y2="-7"/><line x1="-22" y1="0" x2="-27" y2="0"/><line x1="-22" y1="7" x2="-27" y2="7"/><line x1="-22" y1="14" x2="-27" y2="14"/>
+      <line x1="22" y1="-14" x2="27" y2="-14"/><line x1="22" y1="-7" x2="27" y2="-7"/><line x1="22" y1="0" x2="27" y2="0"/><line x1="22" y1="7" x2="27" y2="7"/><line x1="22" y1="14" x2="27" y2="14"/>
+    </g>
+
+    <!-- 45° PCB Copper Bus Traces & Vias -->
+    <g fill="none" stroke="#79c4ba" stroke-width="1.4" opacity="0.6">
+      <path d="M-27 0 H-50 L-75 25 H-110"/>
+      <path d="M-27 7 H-45 L-70 32 H-110"/>
+      <path d="M0 -27 V-42 L25 -67 H65"/>
+    </g>
+    <circle cx="-110" cy="25" r="3.5" fill="#040b15" stroke="#79c4ba" stroke-width="1.4"/>
+    <circle cx="-110" cy="25" r="1.5" fill="#d3f1e7"/>
+    <circle cx="-110" cy="32" r="3.5" fill="#040b15" stroke="#79c4ba" stroke-width="1.4"/>
+    <circle cx="-110" cy="32" r="1.5" fill="#d3f1e7"/>
+
+    <!-- Digital Clock Pulse Waveform -->
+    <path d="M-105 55 h10 v-12 h15 v12 h15 v-12 h15 v12 h15" fill="none" stroke="#69bdb6" stroke-width="1.2"/>
+    <text x="0" y="-32" fill="#d3f1e7" font-family="'Courier New', monospace" font-size="8" font-weight="700" text-anchor="middle">ELECTRONICS // IC</text>
+  </g>
+
+  <!-- ── 5. IT: NEURAL NETWORK COMPUTE GRAPH & DATA TELEMETRY ── -->
+  <g id="ban-it" transform="translate(10, 110)">
+    <!-- Neural Network Synaptic Edges -->
+    <g stroke="#69bdb6" stroke-width="0.8" opacity="0.35">
+      <line x1="0" y1="-20" x2="35" y2="-30"/><line x1="0" y1="-20" x2="35" y2="0"/><line x1="0" y1="-20" x2="35" y2="30"/>
+      <line x1="0" y1="0" x2="35" y2="-30"/><line x1="0" y1="0" x2="35" y2="0"/><line x1="0" y1="0" x2="35" y2="30"/>
+      <line x1="0" y1="20" x2="35" y2="-30"/><line x1="0" y1="20" x2="35" y2="0"/><line x1="0" y1="20" x2="35" y2="30"/>
+      <line x1="35" y1="-30" x2="70" y2="-12"/><line x1="35" y1="-30" x2="70" y2="12"/>
+      <line x1="35" y1="0" x2="70" y2="-12"/><line x1="35" y1="0" x2="70" y2="12"/>
+      <line x1="35" y1="30" x2="70" y2="-12"/><line x1="35" y1="30" x2="70" y2="12"/>
+    </g>
+    <!-- Layer 1 Nodes -->
+    <g fill="#091f33" stroke="#79c4ba" stroke-width="1.3">
+      <circle cx="0" cy="-20" r="4"/><circle cx="0" cy="-20" r="1.5" fill="#d3f1e7"/>
+      <circle cx="0" cy="0" r="4"/><circle cx="0" cy="0" r="1.5" fill="#d3f1e7"/>
+      <circle cx="0" cy="20" r="4"/><circle cx="0" cy="20" r="1.5" fill="#d3f1e7"/>
+    </g>
+    <!-- Layer 2 Nodes (Hidden Features) -->
+    <g fill="#091f33" stroke="#d3f1e7" stroke-width="1.3">
+      <circle cx="35" cy="-30" r="4.5"/><circle cx="35" cy="-30" r="7" fill="none" stroke="#69bdb6" stroke-width="0.6" stroke-dasharray="2 2"/>
+      <circle cx="35" cy="0" r="4.5"/><circle cx="35" cy="0" r="7" fill="none" stroke="#69bdb6" stroke-width="0.6" stroke-dasharray="2 2"/>
+      <circle cx="35" cy="30" r="4.5"/><circle cx="35" cy="30" r="7" fill="none" stroke="#69bdb6" stroke-width="0.6" stroke-dasharray="2 2"/>
+    </g>
+    <!-- Layer 3 Output Nodes -->
+    <g fill="#091f33" stroke="#79c4ba" stroke-width="1.3">
+      <circle cx="70" cy="-12" r="5"/><circle cx="70" cy="-12" r="2" fill="#ffffff"/>
+      <circle cx="70" cy="12" r="5"/><circle cx="70" cy="12" r="2" fill="#ffffff"/>
+    </g>
+    <!-- Binary Stream -->
+    <g transform="translate(90, -25)" font-family="'Courier New', monospace" font-size="8" fill="#69bdb6" opacity="0.8">
+      <text x="0" y="0">01000001</text>
+      <text x="0" y="12">01010010</text>
+      <text x="0" y="24">01001001</text>
+      <text x="0" y="36">01000101</text>
+      <text x="0" y="48">01010011</text>
+    </g>
+    <text x="60" y="66" fill="#d3f1e7" font-family="'Courier New', monospace" font-size="8" font-weight="700" text-anchor="middle">IT // NEURAL MESH</text>
+  </g>
+
+  <!-- ── 6. CENTRAL GEODETIC PLANETARY CORE ── -->
+  <g id="ban-geodetic" fill="none" stroke="#69bdb6">
+    <circle r="85" stroke-width="1.8" stroke="#79c4ba" opacity="0.7"/>
+    <circle r="89" stroke-width="0.6" stroke-dasharray="2 3" opacity="0.35"/>
+    <ellipse cx="0" cy="0" rx="85" ry="30" stroke-width="1.4" opacity="0.55"/>
+    <ellipse cx="0" cy="-26" rx="80" ry="26" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.3"/>
+    <ellipse cx="0" cy="26" rx="80" ry="26" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.3"/>
+    <ellipse cx="0" cy="0" rx="28" ry="85" stroke-width="1" opacity="0.4"/>
+    <ellipse cx="0" cy="0" rx="56" ry="85" stroke-width="0.8" opacity="0.3"/>
+
+    <!-- Ground Station Network Nodes on Earth Core -->
+    <circle cx="-12" cy="-14" r="2.5" fill="#ffffff"/>
+    <circle cx="18" cy="-25" r="2.5" fill="#ffffff"/>
+    <circle cx="42" cy="-6" r="2.5" fill="#ffffff"/>
+    <circle cx="24" cy="18" r="2.5" fill="#ffffff"/>
+    <path d="M-12 -14 L18 -25 L42 -6 L24 18 Z" stroke="#a1d2cd" stroke-width="0.8" opacity="0.45"/>
+  </g>
+
+</g>
+
+</svg>

@@ -7,7 +7,7 @@
  * Features:
  *  1. Bot Commands: Listens to incoming group messages (and private DMs), detects command prefixes (e.g. !),
  *     and dispatches actions (e.g. !countdown, !time, !help, custom commands).
- *     If a poster is configured for the countdown, it sends the poster + caption as ONE unified message.
+ *     !countdown replies once per active countdown; one with a poster is sent as poster + caption in ONE message.
  *  2. Strict Command Mode (Auto-Moderation): Automatically deletes non-command messages from
  *     the group (requires the bot to be a Group Admin), keeping the chat strictly command-only.
  *
@@ -295,29 +295,30 @@ async function isChatInTargetGroups(client, chatId, targetGroups, chatName) {
 }
 
 /**
- * Formats the countdown response dynamically based on current countdown state.
+ * Builds one reply per active countdown, ordered by target date.
  * Strictly ZERO emojis.
  * @param {import('lowdb').LowdbSync} db
  * @param {string} senderName
- * @returns {string}
+ * @returns {{ text: string, mediaPath: string|null }[]}
  */
 function handleCountdownCommand(db, senderName) {
-  const countdown = db.get('countdown').value() || {};
-  if (!countdown.enabled || !countdown.targetDate) {
-    return `Hi ${senderName}, no event countdown is currently active.`;
+  const active = (db.get('countdowns').value() || [])
+    .filter((countdown) => countdown.enabled && countdown.targetDate)
+    .sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate));
+  if (active.length === 0) {
+    return [{ text: `Hi ${senderName}, no event countdown is currently active.`, mediaPath: null }];
   }
 
-  const targetDate = new Date(countdown.targetDate);
-  if (isNaN(targetDate.getTime())) {
-    return 'Please set a valid date for the event countdown.';
-  }
-
-  const now = Date.now();
-  if (now >= targetDate.getTime()) {
-    return `${(countdown.eventTitle || '').trim() || 'Event Countdown'}\nThe event has started!`;
-  }
-
-  return formatCountdownMessage(countdown, targetDate);
+  return active.map((countdown) => {
+    const targetDate = new Date(countdown.targetDate);
+    if (isNaN(targetDate.getTime())) {
+      return { text: 'Please set a valid date for the event countdown.', mediaPath: null };
+    }
+    const text = Date.now() >= targetDate.getTime()
+      ? `${(countdown.eventTitle || '').trim() || 'Event Countdown'}\nThe event has started!`
+      : formatCountdownMessage(countdown, targetDate);
+    return { text, mediaPath: countdown.mediaPath || null };
+  });
 }
 
 /**
@@ -338,6 +339,7 @@ function handleTimeCommand(senderName) {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
+    hourCycle: 'h23',
   });
   return `[SERVER TIME]\nDate: ${formattedDate}\nTime: ${formattedTime}`;
 }
@@ -378,7 +380,7 @@ function handleCustomCommand(cmd, senderName, groupName) {
   return template
     .replace(/\{name\}/gi, senderName)
     .replace(/\{group\}/gi, groupName || '')
-    .replace(/\{time\}/gi, now.toLocaleTimeString())
+    .replace(/\{time\}/gi, now.toLocaleTimeString(undefined, { hourCycle: 'h23' }))
     .replace(/\{date\}/gi, now.toLocaleDateString());
 }
 
@@ -558,26 +560,23 @@ async function run({ message, client }) {
       _cooldownCache.set(cooldownKey, now);
 
       // Execute matching action
-      let replyMessage = '';
+      let replies;
       if (matchedCmd.action === 'countdown') {
-        replyMessage = handleCountdownCommand(db, senderName);
+        replies = handleCountdownCommand(db, senderName);
       } else if (matchedCmd.action === 'time') {
-        replyMessage = handleTimeCommand(senderName);
+        replies = [{ text: handleTimeCommand(senderName), mediaPath: null }];
       } else if (matchedCmd.action === 'help') {
-        replyMessage = handleHelpCommand(cfg, prefix, senderName);
+        replies = [{ text: handleHelpCommand(cfg, prefix, senderName), mediaPath: null }];
       } else {
-        replyMessage = handleCustomCommand(matchedCmd, senderName, groupName);
+        replies = [{ text: handleCustomCommand(matchedCmd, senderName, groupName), mediaPath: null }];
       }
+      replies = replies.filter((reply) => reply.text);
 
-      if (replyMessage) {
-        // If countdown has a poster attachment, send the poster + caption as ONE unified message
-        const countdownCfg = db.get('countdown').value() || {};
-        const mediaPath =
-          matchedCmd.action === 'countdown' && countdownCfg.mediaPath
-            ? countdownCfg.mediaPath
-            : null;
-
-        await safeReply(client, message, replyMessage, mediaPath);
+      if (replies.length) {
+        // A countdown with a poster is sent as the poster + caption in ONE unified message
+        for (const reply of replies) {
+          await safeReply(client, message, reply.text, reply.mediaPath);
+        }
 
         const chatLabel = groupName || senderName || 'Private Chat';
         logger.info(`[BotCommands] Executed "${prefix}${matchedCmd.trigger}" for "${senderName}" in "${chatLabel}"`);

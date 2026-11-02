@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Bold countdown poster</title>
+  <desc id="desc">A dark navy event poster with a large coral day count.</desc>
+  <rect width="1080" height="1080" fill="#111d36"/>
+  <circle cx="1020" cy="100" r="290" fill="#253452"/>
+  <circle cx="70" cy="1020" r="230" fill="#253452"/>
+  <path d="M0 690 L1080 530 L1080 1080 L0 1080Z" fill="#192944"/>
+  <rect x="76" y="76" width="928" height="928" rx="8" fill="none" stroke="#64738c" stroke-width="2"/>
+  <g font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+    <!-- Edit the text between each pair of text tags. -->
+    <text id="eyebrow" x="540" y="167" fill="#a9b9cb" font-size="27" font-weight="700" letter-spacing="6">THE COUNTDOWN IS ON</text>
+    <text id="event-title" x="540" y="247" fill="#ffffff" font-size="54" font-weight="700">YOUR EVENT NAME</text>
+    <text id="days" x="540" y="612" fill="#ff826e" font-size="350" font-weight="900">07</text>
+    <text id="days-label" x="540" y="683" fill="#ffffff" font-size="48" font-weight="700" letter-spacing="13">DAYS TO GO</text>
+    <path d="M430 748 H650" stroke="#ff826e" stroke-width="4"/>
+    <text id="event-date" x="540" y="825" fill="#ffffff" font-size="35" font-weight="700">SATURDAY · 24 OCTOBER</text>
+    <text id="event-details" x="540" y="877" fill="#a9b9cb" font-size="27">YOUR VENUE  •  6:00 PM</text>
+  </g>
+</svg>

@@ -3,14 +3,14 @@
 /**
  * core/countdown.js
  * Countdown broadcast module.
- * Checks if the countdown is active and broadcasts to all configured target groups.
+ * Checks every configured countdown and broadcasts the due ones to all configured target groups.
  */
 
 const { getDb, getTargetGroups } = require('./db');
 const { findGroupByName, sendMessage, broadcast } = require('./whatsappClient');
 const logger = require('./logger');
 
-let _isSending = false;
+const _sending = new Set();
 
 function formatCountdownMessage(cfg, targetDate = new Date(cfg.targetDate)) {
   const title = (cfg.eventTitle || '').trim() || 'Event Countdown';
@@ -55,21 +55,35 @@ function resolveTemplate(template, targetDate) {
  * Run one cycle of the countdown checker.
  * @param {Object}  [options]
  * @param {boolean} [options.force=false] - If true, bypass interval check and broadcast immediately.
+ * @param {string}  [options.id] - Only check the countdown with this id.
  * @returns {Promise<{ sentCount: number, error?: string }>}
  */
-async function runCountdownCheck({ force = false } = {}) {
-  if (_isSending) return { sentCount: 0, error: 'A countdown broadcast is already in progress' };
-  _isSending = true;
-  try {
-    return await sendCountdown({ force });
-  } finally {
-    _isSending = false;
+async function runCountdownCheck({ force = false, id } = {}) {
+  const countdowns = (getDb().get('countdowns').value() || []).filter((cfg) => !id || cfg.id === id);
+  if (id && countdowns.length === 0) return { sentCount: 0, error: 'Countdown not found' };
+
+  let sentCount = 0;
+  let error;
+  for (const cfg of countdowns) {
+    if (_sending.has(cfg.id)) {
+      error = error || 'A countdown broadcast is already in progress';
+      continue;
+    }
+    _sending.add(cfg.id);
+    try {
+      const result = await sendCountdown(cfg, { force });
+      sentCount += result.sentCount;
+      error = error || result.error;
+    } finally {
+      _sending.delete(cfg.id);
+    }
   }
+  return { sentCount, ...(sentCount === 0 && error ? { error } : {}) };
 }
 
-async function sendCountdown({ force }) {
+async function sendCountdown(cfg, { force }) {
   const db = getDb();
-  const cfg = db.get('countdown').value();
+  const saved = () => db.get('countdowns').find({ id: cfg.id });
 
   if (!cfg.enabled && !force) return { sentCount: 0 };
   if (!cfg.targetDate) return { sentCount: 0, error: 'Target date is not set' };
@@ -89,8 +103,8 @@ async function sendCountdown({ force }) {
 
   // Target date reached — disable countdown automatically
   if (now >= targetDate.getTime()) {
-    logger.info('[Countdown] Target date reached. Disabling countdown.');
-    db.set('countdown.enabled', false).write();
+    logger.info(`[Countdown] "${cfg.eventTitle || cfg.id}" reached its target date. Disabling it.`);
+    saved().assign({ enabled: false }).write();
     broadcast('config:updated', db.getState());
     return { sentCount: 0, error: 'Target date reached' };
   }
@@ -152,9 +166,10 @@ async function sendCountdown({ force }) {
 
   if (sentCount > 0) {
     const nowIso = new Date().toISOString();
-    db.set('countdown.lastSentAt', nowIso).write();
+    saved().assign({ lastSentAt: nowIso }).write();
     broadcast('log:event', {
       type: 'countdown',
+      countdownId: cfg.id,
       message: `${message} [Delivered to ${sentCount} group(s)]`,
       sentAt: nowIso,
     });

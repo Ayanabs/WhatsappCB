@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Celebration countdown poster</title>
+  <desc id="desc">A warm cream and orange poster with a sunburst and a large day count.</desc>
+  <rect width="1080" height="1080" fill="#fff3df"/>
+  <g fill="#e65c35">
+    <circle cx="110" cy="200" r="10"/><circle cx="969" cy="238" r="12"/><circle cx="140" cy="800" r="12"/><circle cx="944" cy="780" r="9"/>
+    <path d="M161 320 l9 23 23 9 -23 9 -9 23 -9 -23 -23 -9 23 -9z M917 400 l8 20 20 8 -20 8 -8 20 -8 -20 -20 -8 20 -8z"/>
+  </g>
+  <circle cx="540" cy="520" r="292" fill="#f8c84b"/>
+  <circle cx="540" cy="520" r="254" fill="none" stroke="#e65c35" stroke-width="3" stroke-dasharray="5 12"/>
+  <g font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+    <!-- Edit the text between each pair of text tags. -->
+    <text id="eyebrow" x="540" y="122" fill="#b84326" font-size="26" font-weight="700" letter-spacing="5">SAVE THE DATE</text>
+    <text id="event-title" x="540" y="191" fill="#3f2923" font-size="55" font-weight="700">YOUR EVENT NAME</text>
+    <text id="days" x="540" y="587" fill="#a63e25" font-size="280" font-weight="900">07</text>
+    <text id="days-label" x="540" y="655" fill="#603124" font-size="38" font-weight="700" letter-spacing="8">DAYS TO GO</text>
+    <text id="event-date" x="540" y="900" fill="#3f2923" font-size="37" font-weight="700">24 OCTOBER  •  6:00 PM</text>
+    <text id="event-details" x="540" y="951" fill="#926a55" font-size="27">YOUR VENUE  /  EVERYONE IS WELCOME</text>
+  </g>
+</svg>

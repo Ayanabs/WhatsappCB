@@ -34,10 +34,12 @@ const approvalAuth   = require('./core/approvalAuth');
 const API_PORT      = parseInt(process.env.API_PORT || process.env.PORT, 10) || 5150;
 const FRONTEND_PORT = parseInt(process.env.FRONTEND_PORT, 10) || 5151;
 
-// ─── Uploads directory ────────────────────────────────────────────────────────
+// ─── Uploads and Posters directories ──────────────────────────────────────────
 
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
+const POSTERS_DIR = path.join(__dirname, 'posters');
 fse.ensureDirSync(UPLOADS_DIR);
+fse.ensureDirSync(POSTERS_DIR);
 
 // ══════════════════════════════════════════════════════════════════════════════
 // API SERVER  (API_PORT)
@@ -54,8 +56,9 @@ apiApp.use(cors());
 apiApp.use(express.json());
 apiApp.use(express.urlencoded({ extended: false }));
 
-// Serve uploaded media so the HUD can preview them
+// Serve uploaded media and poster templates so the HUD can preview them
 apiApp.use('/uploads', express.static(UPLOADS_DIR));
+apiApp.use('/posters', express.static(POSTERS_DIR));
 
 // REST API
 apiApp.use('/api', approvalAuth.middleware, apiRouter);
@@ -95,8 +98,9 @@ frontendApp.get('/config.js', (req, res) => {
   res.send(`/* Dynamic runtime configuration */\nwindow.WABOT_API = ${JSON.stringify(apiOrigin)};\n`);
 });
 
-// Serve uploaded media directly on the frontend port as well
+// Serve uploaded media and poster templates directly on the frontend port as well
 frontendApp.use('/uploads', express.static(UPLOADS_DIR));
+frontendApp.use('/posters', express.static(POSTERS_DIR));
 
 // Serve static HUD files from /public
 frontendApp.use(express.static(path.join(__dirname, 'public')));
