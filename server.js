@@ -28,6 +28,7 @@ const taskWorker     = require('./core/taskWorker');
 const pluginRegistry = require('./plugins');
 const apiRouter      = require('./routes/api');
 const approvalAuth   = require('./core/approvalAuth');
+const loginAuth      = require('./core/loginAuth');
 
 // ─── Port configuration ───────────────────────────────────────────────────────
 
@@ -60,8 +61,12 @@ apiApp.use(express.urlencoded({ extended: false }));
 apiApp.use('/uploads', express.static(UPLOADS_DIR));
 apiApp.use('/posters', express.static(POSTERS_DIR));
 
+// Dashboard sign-in (must stay outside the auth-protected /api stack)
+apiApp.post('/api/auth/login', loginAuth.login);
+apiApp.get('/api/auth/session', loginAuth.middleware, loginAuth.session);
+
 // REST API
-apiApp.use('/api', approvalAuth.middleware, apiRouter);
+apiApp.use('/api', loginAuth.middleware, approvalAuth.middleware, apiRouter);
 
 // 404 fallback for the API server (don't serve HTML here)
 apiApp.use((req, res) => {
@@ -111,6 +116,8 @@ frontendApp.get('*', (_req, res) => {
 });
 
 // ─── Socket.IO ───────────────────────────────────────────────────────────────
+
+io.use(loginAuth.socketMiddleware);
 
 io.on('connection', (socket) => {
   logger.info(`[Socket.IO] HUD client connected: ${socket.id}`);

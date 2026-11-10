@@ -14,13 +14,33 @@ const _sending = new Set();
 
 function formatCountdownMessage(cfg, targetDate = new Date(cfg.targetDate)) {
   const title = (cfg.eventTitle || '').trim() || 'Event Countdown';
-  const template = cfg.messageTemplate || 'Time remaining: {days} days, {hours} hours and {minutes} minutes.';
+  const template = cfg.messageTemplate || 'Only {days} days and {hours} hours left.';
   return `${title}\n${resolveTemplate(template, targetDate)}`;
 }
 
 /**
+ * The countdown with the content saved for the Sri Lanka calendar day of `now`
+ * applied, so a day's own title, message or poster replaces the main one.
+ * @param {Object} cfg
+ * @param {number} [now]
+ * @returns {Object}
+ */
+function countdownContentFor(cfg, now = Date.now()) {
+  const day = new Date(now + 330 * 60000).toISOString().slice(0, 10);
+  const override = (cfg.dailyContent || {})[day] || {};
+  return {
+    ...cfg,
+    eventTitle: override.eventTitle || cfg.eventTitle,
+    messageTemplate: override.messageTemplate || cfg.messageTemplate,
+    mediaPath: override.mediaPath || cfg.mediaPath,
+  };
+}
+
+/**
  * Resolve countdown tokens in a template string.
- * Supported tokens: {days}, {hours}, {minutes}, {seconds}
+ * Supported tokens: {days}, {hours}. Use either or both; {hours} alone
+ * counts total hours. {minutes} and {seconds} are still
+ * resolved so older templates keep working, but are no longer advertised.
  *
  * @param {string} template
  * @param {Date}   targetDate
@@ -40,7 +60,10 @@ function resolveTemplate(template, targetDate) {
 
   const totalSeconds = Math.floor(diffMs / 1000);
   const days    = Math.floor(totalSeconds / 86400);
-  const hours   = Math.floor((totalSeconds % 86400) / 3600);
+  // Without {days}, {hours} shows the total hours left (e.g. 77, not 5).
+  const hours   = /\{days\}/i.test(template)
+    ? Math.floor((totalSeconds % 86400) / 3600)
+    : Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
@@ -135,14 +158,7 @@ async function sendCountdown(cfg, { force }) {
     if (now < slot || slot < startMs || slot < activatedAt || lastSentMs >= slot) return { sentCount: 0 };
   }
 
-  const day = new Date(now + 330 * 60000).toISOString().slice(0, 10);
-  const override = (cfg.dailyContent || {})[day] || {};
-  const content = {
-    ...cfg,
-    eventTitle: override.eventTitle || cfg.eventTitle,
-    messageTemplate: override.messageTemplate || cfg.messageTemplate,
-    mediaPath: override.mediaPath || cfg.mediaPath,
-  };
+  const content = countdownContentFor(cfg, now);
   const message = formatCountdownMessage(content, targetDate);
   let sentCount = 0;
 
@@ -179,4 +195,4 @@ async function sendCountdown(cfg, { force }) {
   return { sentCount, ...(sentCount === 0 ? { error: 'Countdown could not be delivered. Check the WhatsApp connection, target groups and attachment in the activity log.' } : {}) };
 }
 
-module.exports = { runCountdownCheck, resolveTemplate, formatCountdownMessage };
+module.exports = { runCountdownCheck, resolveTemplate, formatCountdownMessage, countdownContentFor };

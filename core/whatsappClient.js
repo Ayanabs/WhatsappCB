@@ -24,6 +24,10 @@ let _io = null;                  // Socket.IO server reference (injected after i
 let _messageListener = null;     // Registered incoming message handler
 let _isLoggingOut = false;       // Guard against concurrent logout/re-init calls
 let _isRecovering = false;       // Guard against concurrent page recoveries
+let _startRetried = false;       // One saved-session retry after a logged-out page
+
+/** whatsapp-web.js reads WAWebSocketModel.Socket, which is null on a logged-out page. */
+const LOGGED_OUT_PAGE_ERROR = /reading 'Socket'/;
 
 function getLastQr() {
   return _lastQrImageUrl;
@@ -226,8 +230,22 @@ async function startClient() {
   const client = getClient();
   try {
     await client.initialize();
+    _startRetried = false;
   } catch (err) {
     logger.error('[WhatsApp] Client initialisation error:', err.message);
+    if (LOGGED_OUT_PAGE_ERROR.test(err.message || '') && !_isLoggingOut) {
+      // The saved session opened WhatsApp Web without its socket module, which
+      // happens when the server no longer accepts that session or serves a
+      // broken build. Retry once with the session before asking for a re-link.
+      if (!_startRetried && !_isRecovering) {
+        _startRetried = true;
+        await recoverClient('saved session did not load WhatsApp Web');
+        return;
+      }
+      _startRetried = false;
+      broadcast('wa:error', { message: 'WhatsApp Web did not open the saved session. Log out and scan a new QR code to re-link this device.' });
+      return;
+    }
     broadcast('wa:error', { message: err.message });
   }
 }

@@ -20,7 +20,7 @@ const path = require('path');
 const fse = require('fs-extra');
 const { MessageMedia } = require('whatsapp-web.js');
 const { getDb, getTargetGroups } = require('../core/db');
-const { formatCountdownMessage } = require('../core/countdown');
+const { formatCountdownMessage, countdownContentFor } = require('../core/countdown');
 const { broadcast, findGroupByName } = require('../core/whatsappClient');
 const logger = require('../core/logger');
 
@@ -309,7 +309,9 @@ function handleCountdownCommand(db, senderName) {
     return [{ text: `Hi ${senderName}, no event countdown is currently active.`, mediaPath: null }];
   }
 
-  return active.map((countdown) => {
+  return active.map((saved) => {
+    // Use today's own title, message and poster when that day has been customised.
+    const countdown = countdownContentFor(saved);
     const targetDate = new Date(countdown.targetDate);
     if (isNaN(targetDate.getTime())) {
       return { text: 'Please set a valid date for the event countdown.', mediaPath: null };

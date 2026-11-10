@@ -27,6 +27,9 @@ services:
       # (for example https://bot.example.com behind a reverse proxy)
       - PUBLIC_API_URL=${PUBLIC_API_URL:-}
       - TZ=${TZ:-Asia/Colombo}
+      # Dashboard sign-in, set in the .env file next to this compose file
+      - DASHBOARD_USERNAME=${DASHBOARD_USERNAME:-}
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-}
 
     volumes:
       # WhatsApp session — persists your QR scan across container restarts

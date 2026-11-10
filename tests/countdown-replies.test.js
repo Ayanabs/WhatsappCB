@@ -104,3 +104,20 @@ test('text-only countdown replies also bypass the unread-chat action', async (t)
   assert.equal(h.delivered[0].options.media, undefined);
   assert.equal(h.seenCalls(), 0);
 });
+
+test("!countdown replies with today's own title, message and poster when the day is customised", async (t) => {
+  const h = await setup(t);
+  const dayPoster = path.join(os.tmpdir(), `countdown-day-${process.pid}.png`);
+  const dayImage = Buffer.from('R0lGODlhAQABAAAAACw=', 'base64');
+  await fs.writeFile(dayPoster, dayImage);
+  t.after(() => fs.rm(dayPoster, { force: true }));
+  const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+  h.db.set('countdowns[0].dailyContent', {
+    [today]: { eventTitle: 'Exhibition Day', messageTemplate: 'Only {days} days to go', mediaPath: dayPoster, mediaUrl: '/uploads/day.png', mediaName: 'day.png' },
+  }).write();
+  await h.run();
+  assert.equal(h.delivered.length, 1);
+  const { options } = h.delivered[0];
+  assert.equal(options.media.data, dayImage.toString('base64'));
+  assert.match(options.caption, /^Exhibition Day\nOnly \d+ days to go$/);
+});

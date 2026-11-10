@@ -32,11 +32,17 @@ test('countdown preview, immediate image broadcast and scheduled image delivery'
     '../core/logger': logger,
     '../core/approvalAuth': approval,
   }, { process: { ...process, cwd: () => directory } });
+  process.env.DASHBOARD_USERNAME = 'test-user';
+  process.env.DASHBOARD_PASSWORD = 'test-password';
+  const loginAuth = require('../core/loginAuth');
   app.use(express.json());
+  app.post('/api/auth/login', loginAuth.login);
+  app.get('/api/auth/session', loginAuth.middleware, loginAuth.session);
   app.use('/api', approval.middleware, api);
   app.get('/config.js', (_req, res) => res.type('js').send('window.WABOT_API = "";'));
   app.use('/uploads', express.static(path.join(directory, 'uploads')));
   app.use(express.static(path.join(root, 'public')));
+  io.use(loginAuth.socketMiddleware);
   io.on('connection', (socket) => socket.emit('config:updated', h.db.getState()));
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${server.address().port}`;
@@ -45,6 +51,22 @@ test('countdown preview, immediate image broadcast and scheduled image delivery'
     await browser?.close();
     await new Promise((resolve) => io.close(resolve));
     await fs.rm(directory, { recursive: true, force: true });
+  });
+
+  await t.test('dashboard sign-in accepts only the configured credentials', async () => {
+    const login = (body) => fetch(`${origin}/api/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    assert.equal((await login({ username: 'test-user', password: 'wrong' })).status, 401);
+    const response = await login({ username: 'test-user', password: 'test-password' });
+    assert.equal(response.status, 200);
+    const { token } = await response.json();
+    assert.equal((await fetch(`${origin}/api/auth/session`)).status, 401);
+    const renewed = await fetch(`${origin}/api/auth/session`, { headers: { Authorization: `Bearer ${token}` } });
+    assert.equal(renewed.status, 200);
+    assert.ok(loginAuth.verifyToken((await renewed.json()).token));
+    const idleToken = loginAuth.issueToken(Date.now() - loginAuth.IDLE_TIMEOUT_MS - 1000);
+    assert.equal((await fetch(`${origin}/api/auth/session`, { headers: { Authorization: `Bearer ${idleToken}` } })).status, 401);
   });
 
   await t.test('API rejects invalid scheduled dates instead of queuing unusable posts', async () => {
@@ -95,6 +117,10 @@ test('countdown preview, immediate image broadcast and scheduled image delivery'
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
   await page.goto(origin, { waitUntil: 'networkidle0' });
+  await page.waitForSelector('#login-form');
+  await page.type('#login-username', 'test-user');
+  await page.type('#login-password', 'test-password');
+  await page.click('#login-submit');
   await page.waitForSelector('.group-tile-card');
   const verificationDir = path.join(root, 'scratch/verification');
   await fs.mkdir(verificationDir, { recursive: true });
@@ -150,6 +176,12 @@ test('countdown preview, immediate image broadcast and scheduled image delivery'
     await page.click(`.day-card[data-day="${selectedDay}"]`);
     assert.equal(await page.$eval('#countdown-day-editor', (el) => el.classList.contains('hidden')), false);
     assert.equal(await page.$eval('#countdown-day-date', (el) => el.value), selectedDay);
+    // A day without its own content opens on "Use main content" with its fields hidden.
+    assert.equal(await page.$eval('input[name="countdown-day-mode"][value="main"]', (el) => el.checked), true);
+    assert.equal(await page.$eval('#countdown-day-fields', (el) => el.classList.contains('hidden')), true);
+    assert.match(await page.$eval('#countdown-preview-source', (el) => el.textContent), /Today[\s\S]*Main content/);
+    await page.click('input[name="countdown-day-mode"][value="custom"] + span');
+    assert.equal(await page.$eval('#countdown-day-fields', (el) => el.classList.contains('hidden')), false);
     await page.type('#countdown-day-title', 'Daily title');
     await page.type('#countdown-day-message', 'Daily {days}');
     await (await page.$('#countdown-day-media')).uploadFile(filename);
@@ -160,6 +192,14 @@ test('countdown preview, immediate image broadcast and scheduled image delivery'
     assert.match(await page.$eval(`.day-card[data-day="${selectedDay}"]`, (el) => el.textContent), /Custom[\s\S]*Daily title[\s\S]*Daily \d+/);
     assert.equal(await page.$eval(`.day-card[data-day="${selectedDay}"] img`, (el) => el.getAttribute('src').includes('event-poster.png')), true);
     assert.match(await page.$eval('#countdown-day-summary', (el) => el.textContent), /4 days · 1 customised/);
+    // The preview shows today's final message: the day's title, message and poster.
+    assert.match(await page.$eval('#countdown-preview-text', (el) => el.textContent), /^Daily title\nDaily \d+$/);
+    assert.equal(await page.$eval('#countdown-preview-media img', (el) => el.getAttribute('src').includes('event-poster.png')), true);
+    assert.match(await page.$eval('#countdown-preview-source', (el) => el.textContent), /Today[\s\S]*Custom for this day[\s\S]*Image: event-poster\.png \(saved for this day\)[\s\S]*Title: this day · Message: this day/);
+    assert.equal(await page.$eval('input[name="countdown-day-mode"][value="custom"]', (el) => el.checked), true);
+    await page.type('#countdown-day-title', '!');
+    assert.match(await page.$eval('#countdown-preview-source', (el) => el.textContent), /Unsaved changes for this day are not included/);
+    await page.$eval('#countdown-day-title', (el) => { el.value = 'Daily title'; });
     await page.screenshot({ path: path.join(verificationDir, 'countdown-days.png'), fullPage: true });
     await page.reload({ waitUntil: 'networkidle0' });
     await page.click('.group-tile-card');
@@ -168,6 +208,14 @@ test('countdown preview, immediate image broadcast and scheduled image delivery'
     assert.equal(await page.$eval('#countdown-day-title', (el) => el.value), 'Daily title');
     assert.equal(await page.$eval('#countdown-day-message', (el) => el.value), 'Daily {days}');
     assert.match(await page.$eval('#countdown-day-media-name', (el) => el.textContent), /event-poster.png/);
+    assert.equal(await page.$eval('input[name="countdown-day-mode"][value="custom"]', (el) => el.checked), true);
+    // Saving "Use main content" removes the day's own title, message and poster.
+    await page.click('input[name="countdown-day-mode"][value="main"] + span');
+    const reset = page.waitForResponse((res) => res.url().includes('/api/countdowns/cd-1/days/') && res.request().method() === 'POST');
+    await page.click('#countdown-day-save');
+    assert.equal((await reset).status(), 200);
+    assert.equal(h.db.get(['countdowns', 0, 'dailyContent', selectedDay]).value(), undefined);
+    await page.waitForFunction(() => /Main content/.test(document.querySelector('#countdown-preview-source').textContent));
     h.db.set('countdowns[0].dailyContent', {}).write();
     io.emit('config:updated', h.db.getState());
   });

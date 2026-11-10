@@ -26,7 +26,6 @@ async function tick() {
     return;
   }
   _isRunning = true;
-  logger.debug('[TaskWorker] Tick started.');
 
   try {
     // Core modules
@@ -54,7 +53,6 @@ async function tick() {
     logger.error('[TaskWorker] Unexpected error in tick:', err.message);
   } finally {
     _isRunning = false;
-    logger.debug('[TaskWorker] Tick complete.');
   }
 }
 

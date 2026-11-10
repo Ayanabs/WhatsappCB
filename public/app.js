@@ -76,7 +76,9 @@ const API_ORIGIN = (typeof window !== 'undefined' && window.WABOT_API)
   : '';
 
 // ═══════════════════════════════════════════════════════════ SOCKET.IO
-const socket = io(API_ORIGIN);
+const socket = io(API_ORIGIN, { auth: (cb) => cb({ token: relayAuth.token() }) });
+socket.on('connect_error', (err) => { if (err.message === 'auth_required') relayAuth.signOut(); });
+document.getElementById('btn-sign-out').addEventListener('click', () => relayAuth.signOut());
 
 // ═══════════════════════════════════════════════════════════ TOAST
 const toastContainer = (() => {
@@ -115,7 +117,7 @@ const serverTimeEl = document.getElementById('server-time');
 function updateClock() {
   serverTimeEl.textContent = new Date().toLocaleString('en-GB', { hourCycle: 'h23' });
   updateOverviewCountdown();
-  if (dashboardState) updateCountdownPreviewText();
+  if (dashboardState) renderCountdownPreview();
 }
 updateClock();
 setInterval(updateClock, 1000);
@@ -226,7 +228,7 @@ socket.on('disconnect', () => {
 // ═══════════════════════════════════════════════════════════ API HELPERS
 
 async function apiGet(path) {
-  const res = await fetch(`${API_ORIGIN}/api${path}`);
+  const res = await authFetch(`${API_ORIGIN}/api${path}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -292,14 +294,24 @@ function requestApproval() {
   return request;
 }
 
+// Adds the dashboard sign-in token and returns to the login screen when it is rejected.
+async function authFetch(url, options = {}) {
+  const res = await fetch(url, { ...options, headers: relayAuth.headers(options.headers) });
+  if (res.status === 401 && (await res.clone().json().catch(() => ({}))).authRequired) {
+    relayAuth.signOut();
+    throw new Error('Signed out');
+  }
+  return res;
+}
+
 async function approvedFetch(url, options) {
-  let res = await fetch(url, options);
+  let res = await authFetch(url, options);
   if (res.status !== 401) return res;
   const first = await res.clone().json().catch(() => ({}));
   if (!first.approvalRequired) return res;
   const credentials = await requestApproval();
   if (!credentials) throw new Error('Approval cancelled');
-  res = await fetch(url, { ...options, headers: { ...(options.headers || {}),
+  res = await authFetch(url, { ...options, headers: { ...(options.headers || {}),
     'X-Approval-Code': credentials.code } });
   return res;
 }
@@ -947,12 +959,32 @@ function openCountdownDay(day) {
   dayDate.value = day;
   showCountdownDay();
   dayEditor.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  dayTitle.focus({ preventScroll: true });
+  document.querySelector('input[name="countdown-day-mode"]:checked')?.focus({ preventScroll: true });
 }
+
+/** "Use main content" or "Custom for this day", as chosen in the day editor. */
+function dayMode() {
+  return document.querySelector('input[name="countdown-day-mode"]:checked')?.value || 'main';
+}
+
+/** Only a custom day shows its own fields; a main-content day says what it sends instead. */
+function applyDayMode() {
+  const custom = dayMode() === 'custom';
+  document.getElementById('countdown-day-fields').classList.toggle('hidden', !custom);
+  document.getElementById('countdown-day-main-note').classList.toggle('hidden', custom);
+}
+document.querySelectorAll('input[name="countdown-day-mode"]').forEach((radio) => radio.addEventListener('change', () => {
+  dayDirty = true;
+  applyDayMode();
+  if (dayMode() === 'custom') dayTitle.focus();
+  renderCountdownPreview();
+}));
 
 function showCountdownDay() {
   displayedDay = dayDate.value;
   const day = countdownDailyContent[displayedDay] || {};
+  document.querySelector(`input[name="countdown-day-mode"][value="${countdownDailyContent[displayedDay] ? 'custom' : 'main'}"]`).checked = true;
+  applyDayMode();
   dayTitle.value = day.eventTitle || '';
   dayMessage.value = day.messageTemplate || '';
   dayMedia.value = '';
@@ -966,9 +998,10 @@ function showCountdownDay() {
   dayMediaName.textContent = day.mediaName ? `Saved: ${day.mediaName}` : 'Using main poster.';
   dayEditor.classList.toggle('hidden', !displayedDay);
   document.getElementById('countdown-day-heading').textContent = displayedDay
-    ? `${formatDay(displayedDay, true)} · ${countdownDailyContent[displayedDay] ? 'Custom content' : 'Using main content'}`
+    ? formatDay(displayedDay, true)
     : '';
   renderDayCards();
+  renderCountdownPreview();
 }
 document.getElementById('countdown-day-close').addEventListener('click', () => {
   if (dayDirty && !confirm('Discard unsaved changes for this day?')) return;
@@ -979,7 +1012,7 @@ dayDate.addEventListener('change', () => {
   if (dayDirty && !confirm('Discard unsaved changes for this day?')) { dayDate.value = displayedDay; return; }
   showCountdownDay();
 });
-for (const input of [dayTitle, dayMessage, dayMedia]) input.addEventListener('input', () => { dayDirty = true; });
+for (const input of [dayTitle, dayMessage, dayMedia]) input.addEventListener('input', () => { dayDirty = true; renderCountdownPreview(); });
 dayMedia.addEventListener('change', () => {
   dayDirty = true;
   dayMediaCleared = false;
@@ -989,6 +1022,7 @@ dayMedia.addEventListener('change', () => {
   const daySelect = document.getElementById('countdown-day-poster-select');
   if (daySelect) daySelect.value = '';
   dayMediaName.textContent = dayMedia.files[0] ? `Selected: ${dayMedia.files[0].name}` : 'Using saved image or main poster.';
+  renderCountdownPreview();
 });
 document.getElementById('countdown-day-clear').addEventListener('click', () => {
   dayMedia.value = '';
@@ -1000,6 +1034,7 @@ document.getElementById('countdown-day-clear').addEventListener('click', () => {
   const daySelect = document.getElementById('countdown-day-poster-select');
   if (daySelect) daySelect.value = '';
   dayMediaName.textContent = 'Using main poster after saving.';
+  renderCountdownPreview();
 });
 document.getElementById('countdown-day-save').addEventListener('click', async () => {
   if (!dayDate.value) { toast('Choose a date first', 'error'); return; }
@@ -1014,12 +1049,16 @@ document.getElementById('countdown-day-save').addEventListener('click', async ()
     }
   }
   const fd = new FormData();
-  fd.append('eventTitle', dayTitle.value);
-  fd.append('messageTemplate', dayMessage.value);
+  const custom = dayMode() === 'custom';
+  // Saving "Use main content" removes the day's own title, message and poster.
+  fd.append('eventTitle', custom ? dayTitle.value : '');
+  fd.append('messageTemplate', custom ? dayMessage.value : '');
   const daySubCard = dayMedia.closest('.sub-card');
   const selectedDayPosterUrl = daySubCard?.getAttribute('data-selected-day-poster-url');
   const selectedDayPosterName = daySubCard?.getAttribute('data-selected-day-poster-name');
-  if (dayMedia.files[0]) {
+  if (!custom) {
+    fd.append('clearMedia', 'true');
+  } else if (dayMedia.files[0]) {
     fd.append('media', dayMedia.files[0]);
   } else if (selectedDayPosterUrl) {
     fd.append('mediaUrl', selectedDayPosterUrl);
@@ -1031,7 +1070,9 @@ document.getElementById('countdown-day-save').addEventListener('click', async ()
     const res = await apiPostForm(`/countdowns/${selectedCountdownId}/days/${dayDate.value}`, fd);
     countdownDailyContent = res.state.countdowns.find((cfg) => cfg.id === selectedCountdownId)?.dailyContent || {};
     showCountdownDay();
-    toast(savedCountdownFirst ? 'Countdown and content for this day saved' : 'Content for this day saved', 'success');
+    toast(!countdownDailyContent[dayDate.value]
+      ? `${formatDay(dayDate.value)} uses the main content`
+      : savedCountdownFirst ? 'Countdown and content for this day saved' : 'Content for this day saved', 'success');
   } catch (err) { toast(`Could not save this day: ${err.message}`, 'error'); }
 });
 wireMediaPicker(countdownMediaInput, countdownMediaName, countdownMediaPreview, countdownMediaClear);
@@ -1039,17 +1080,57 @@ wireMediaPicker(countdownMediaInput, countdownMediaName, countdownMediaPreview, 
 for (const input of [countdownEnabled, countdownTitle, countdownStartDate, countdownDate, countdownTemplate, countdownDailyTime, countdownMediaInput]) {
   input?.addEventListener('input', () => { countdownDirty = true; });
   input?.addEventListener('change', () => { countdownDirty = true; });
-  input?.addEventListener('input', updateCountdownPreviewText);
-  input?.addEventListener('change', updateCountdownPreviewText);
+  input?.addEventListener('input', renderCountdownPreview);
+  input?.addEventListener('change', renderCountdownPreview);
   input?.addEventListener('input', renderDayCards);
   input?.addEventListener('change', renderDayCards);
 }
 
-function updateCountdownPreviewText() {
-  const target = new Date(countdownDate.value ? countdownDate.value + '+05:30' : '');
+/**
+ * Show the exact message a broadcast sends: the open day (or today, which is what
+ * "Broadcast Countdown Now" sends), with that day's saved title, message and
+ * poster replacing the main ones, as the server does.
+ */
+function renderCountdownPreview() {
+  const cfg = countdownDraft();
+  const today = sriLankaDay(new Date().toISOString());
+  const day = displayedDay || today;
+  const entry = countdownDailyContent[day] || {};
+  const customMedia = !!entry.mediaUrl;
+  const mediaUrl = customMedia ? entry.mediaUrl : cfg.mediaUrl;
+  const mediaName = customMedia ? entry.mediaName : cfg.mediaName;
+  const target = new Date(cfg.targetDate);
+  const at = day === today ? Date.now() : Date.parse(`${day}T${cfg.dailyTime || '09:00'}:00+05:30`);
+
   countdownPreviewText.textContent = Number.isFinite(target.getTime())
-    ? `${countdownTitle.value.trim() || 'Event Countdown'}\n${resolveCountdownTemplate(countdownTemplate.value || 'Only {days} days and {hours} hours left.', target)}`
+    ? `${entry.eventTitle || cfg.eventTitle || 'Event Countdown'}\n${resolveCountdownTemplate(entry.messageTemplate || cfg.messageTemplate || 'Only {days} days and {hours} hours left.', target, at)}`
     : 'Choose an event date to see your countdown message here.';
+
+  const fullUrl = mediaUrl && (/^(https?|blob):/.test(mediaUrl) ? mediaUrl : API_ORIGIN + mediaUrl);
+  if (countdownPreviewMedia.dataset.src !== (fullUrl || '')) {
+    countdownPreviewMedia.dataset.src = fullUrl || '';
+    countdownPreviewMedia.innerHTML = '';
+    if (fullUrl) {
+      const video = /\.(mp4|mov|webm|mkv)$/i.test(mediaUrl.startsWith('blob:') ? mediaName || '' : mediaUrl);
+      countdownPreviewMedia.innerHTML = video
+        ? `<video src="${escAttr(fullUrl)}" controls muted></video>`
+        : `<img src="${escAttr(fullUrl)}" alt="${escAttr(mediaName || 'Poster')}" />`;
+    }
+    countdownPreviewMedia.classList.toggle('hidden', !fullUrl);
+  }
+
+  const source = (own) => own ? 'this day' : 'main';
+  const poster = fullUrl
+    ? `${escHtml(mediaName || 'Attachment')} (${customMedia ? 'saved for this day' : 'main poster'})`
+    : 'none, text only';
+  const unsaved = day === displayedDay && dayDirty
+    ? '<span class="preview-warning">Unsaved changes for this day are not included. Save this day first.</span>' : '';
+  const mode = countdownDailyContent[day]
+    ? '<span class="preview-mode preview-mode--custom">Custom for this day</span>'
+    : '<span class="preview-mode preview-mode--main">Main content</span>';
+  document.getElementById('countdown-preview-source').innerHTML =
+    `<strong>${day === today ? 'Today' : 'On'} · ${escHtml(formatDay(day, true))}</strong>${mode}<br>` +
+    `Image: ${poster}<br>Title: ${source(entry.eventTitle)} · Message: ${source(entry.messageTemplate)}${unsaved}`;
 }
 
 function countdownFormData() {
@@ -1145,9 +1226,8 @@ function renderCountdownEditor() {
   else renderDayCards();
 
   renderCountdownList();
-  showCountdownMedia(countdownPreviewMedia);
   updateCountdownScheduleHint();
-  updateCountdownPreviewText();
+  renderCountdownPreview();
 }
 
 function selectCountdown(id) {
@@ -1222,14 +1302,14 @@ if (countdownMediaClear) {
   countdownMediaClear.addEventListener('click', () => {
     countdownMediaRemoved = true;
     countdownDirty = true;
-    showCountdownMedia(countdownPreviewMedia);
     renderDayCards();
+    renderCountdownPreview();
   });
 }
 if (countdownMediaInput) {
   countdownMediaInput.addEventListener('change', () => {
     if (countdownMediaInput.files.length) countdownMediaRemoved = false;
-    showCountdownMedia(countdownPreviewMedia);
+    renderCountdownPreview();
   });
 }
 
@@ -1253,16 +1333,16 @@ if (btnPreviewCountdown) {
       toast('Please set a valid target date first', 'error');
       return;
     }
-    const template = countdownTemplate.value || 'Only {days} days and {hours} hours left.';
-    const resolved = resolveCountdownTemplate(template, targetDate);
-    countdownPreviewText.textContent = `${countdownTitle.value.trim() || 'Event Countdown'}\n${resolved}`;
-    showCountdownMedia(countdownPreviewMedia);
+    renderCountdownPreview();
     countdownPreview.classList.remove('hidden');
   });
 }
 
 if (btnBroadcastCountdown) {
   btnBroadcastCountdown.addEventListener('click', async () => {
+    // A broadcast sends today's saved content; unsaved edits to today would be left out.
+    if (dayDirty && displayedDay === sriLankaDay(new Date().toISOString()) &&
+        !confirm('Your changes for today are not saved, so the broadcast will not include them. Broadcast anyway?')) return;
     btnBroadcastCountdown.disabled = true;
     btnBroadcastCountdown.textContent = 'Broadcasting...';
     try {
@@ -1287,7 +1367,8 @@ function resolveCountdownTemplate(template, targetDate, now = Date.now()) {
   if (diffMs <= 0) return template.replace(/\{days\}/gi,'0').replace(/\{hours\}/gi,'0').replace(/\{minutes\}/gi,'0').replace(/\{seconds\}/gi,'0');
   const totalSec = Math.floor(diffMs / 1000);
   const days    = Math.floor(totalSec / 86400);
-  const hours   = Math.floor((totalSec % 86400) / 3600);
+  // Without {days}, {hours} shows the total hours left (e.g. 77, not 5).
+  const hours   = /\{days\}/i.test(template) ? Math.floor((totalSec % 86400) / 3600) : Math.floor(totalSec / 3600);
   const minutes = Math.floor((totalSec % 3600) / 60);
   const seconds = totalSec % 60;
   return template
@@ -1842,7 +1923,7 @@ function showLocalPreview(file, previewEl) {
 
 async function loadPosterLibrary() {
   try {
-    const res = await fetch(`${API_ORIGIN}/api/posters/library`);
+    const res = await authFetch(`${API_ORIGIN}/api/posters/library`);
     const data = await res.json();
     if (!data.ok || !Array.isArray(data.posters)) return;
     const posters = data.posters;
@@ -1929,21 +2010,15 @@ function wirePosterLibraryEvents() {
           if (areaId === 'countdown-media-area') {
             countdownMediaRemoved = false;
             countdownDirty = true;
-            if (countdownPreviewMedia) {
-              const fullUrl = val.startsWith('http') ? val : API_ORIGIN + val;
-              countdownPreviewMedia.innerHTML = `<img src="${escAttr(fullUrl)}" alt="${escAttr(posterName)}" />`;
-              countdownPreviewMedia.classList.remove('hidden');
-            }
             renderDayCards();
+            renderCountdownPreview();
           }
         } else {
           delete area.dataset.selectedPosterUrl;
           delete area.dataset.selectedPosterName;
           if (!input?.files?.length) {
             clearMediaPicker(input, nameEl, previewEl, clearEl);
-            if (areaId === 'countdown-media-area') {
-              showCountdownMedia(countdownPreviewMedia);
-            }
+            if (areaId === 'countdown-media-area') renderCountdownPreview();
           }
         }
       } else if (target === 'countdown-day') {
@@ -1955,6 +2030,7 @@ function wirePosterLibraryEvents() {
           daySubCard?.setAttribute('data-selected-day-poster-url', val);
           daySubCard?.setAttribute('data-selected-day-poster-name', posterName);
           dayMediaName.textContent = `[Library] ${posterName}`;
+          renderCountdownPreview();
         } else {
           daySubCard?.removeAttribute('data-selected-day-poster-url');
           daySubCard?.removeAttribute('data-selected-day-poster-name');
@@ -2095,7 +2171,7 @@ function activateSvgEditorPanel() {
   async function loadSvgTemplates() {
     if (!tplSelect) return;
     try {
-      const res = await fetch(`${API_ORIGIN}/api/posters/templates`);
+      const res = await authFetch(`${API_ORIGIN}/api/posters/templates`);
       const data = await res.json();
       if (!data.ok || !Array.isArray(data.templates)) return;
       _templatesCache = data.templates;
@@ -2323,6 +2399,7 @@ function activateSvgEditorPanel() {
     // Build form fields and render interactive live SVG preview
     buildFieldForm();
     renderPreview();
+    workspace.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // ─── Render preview ────────────────────────────────────────────────────────
@@ -2334,7 +2411,7 @@ function activateSvgEditorPanel() {
     const clonedSvg = _svgDoc.documentElement.cloneNode(true);
     clonedSvg.querySelectorAll('script').forEach((s) => s.remove());
     clonedSvg.style.maxWidth = '100%';
-    clonedSvg.style.maxHeight = '480px';
+    clonedSvg.style.maxHeight = 'min(480px, calc(100vh - 230px))';
     clonedSvg.style.height = 'auto';
     clonedSvg.style.display = 'block';
 
@@ -2347,8 +2424,8 @@ function activateSvgEditorPanel() {
         e.stopPropagation();
         const targetInput = document.getElementById(`svg-text-field-${idx}`);
         if (targetInput) {
-          targetInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          targetInput.focus();
+          targetInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          targetInput.focus({ preventScroll: true });
           if (typeof targetInput.select === 'function') targetInput.select();
         }
       });

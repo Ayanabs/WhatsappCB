@@ -10,7 +10,20 @@
   <!-- Config: exposes window.WABOT_API (API server origin) -->
   <script src="/config.js"></script>
 </head>
-<body>
+<body class="auth-locked">
+  <section class="login-screen" id="login-screen" aria-labelledby="login-title" hidden>
+    <form class="login-card" id="login-form" novalidate>
+      <span class="brand__mark"><svg class="icon"><use href="#i-message"/></svg></span>
+      <h1 id="login-title">Sign in to relay<span class="brand__dot">.</span></h1>
+      <p class="field-hint">Enter your workspace credentials to continue.</p>
+      <label class="field-label mt-sm" for="login-username">Username</label>
+      <input id="login-username" class="field-input" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required />
+      <label class="field-label mt-sm" for="login-password">Password</label>
+      <input id="login-password" class="field-input" name="password" type="password" autocomplete="current-password" required />
+      <p class="login-error" id="login-error" role="alert"></p>
+      <button type="submit" class="btn btn--primary mt-sm" id="login-submit">Sign in</button>
+    </form>
+  </section>
   <a class="skip-link" href="#main-content">Skip to content</a>
   <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5A8.5 8.5 0 0 1 10.5 3h2a8.5 8.5 0 0 1 8.5 8.5Z"/><path d="M7 10h9M7 14h6"/></symbol>
@@ -60,6 +73,9 @@
       </div>
       <button id="btn-logout" class="btn btn--danger btn--sm" title="Revoke WhatsApp session">
         Log Out
+      </button>
+      <button id="btn-sign-out" class="btn btn--ghost btn--sm" type="button" title="Sign out of the dashboard">
+        Sign out
       </button>
     </div>
   </header>
@@ -354,6 +370,12 @@
                       <button id="countdown-day-close" class="btn btn--ghost btn--sm ml-auto" type="button">Close</button>
                     </div>
                     <input id="countdown-day-date" class="hidden" type="date" aria-hidden="true" tabindex="-1" />
+                    <div class="day-mode" role="radiogroup" aria-label="What this day sends">
+                      <label class="day-mode__option"><input type="radio" name="countdown-day-mode" value="main" /><span>Use main content</span></label>
+                      <label class="day-mode__option"><input type="radio" name="countdown-day-mode" value="custom" /><span>Custom for this day</span></label>
+                    </div>
+                    <p id="countdown-day-main-note" class="day-mode__note">This day sends the main title, message and poster below.</p>
+                    <div id="countdown-day-fields">
                     <label class="field-label mt-sm" for="countdown-day-title">Title for this day</label>
                     <input id="countdown-day-title" class="field-input" type="text" placeholder="Use main title" />
                     <label class="field-label mt-sm" for="countdown-day-message">Message for this day</label>
@@ -368,8 +390,10 @@
                     </div>
                     <p id="countdown-day-media-name" class="field-hint">Using main poster.</p>
                     <button id="countdown-day-clear" class="btn btn--ghost btn--sm" type="button">Use main poster</button>
-                    <button id="countdown-day-save" class="btn btn--secondary btn--sm" type="button">Save this day</button>
-                    <p class="field-hint">Each day is saved separately. To remove an override, clear its fields and choose “Use main poster”, then save.</p>
+                    <p class="field-hint">Leave a field empty to use the main title or message for that part.</p>
+                    </div>
+                    <button id="countdown-day-save" class="btn btn--secondary btn--sm mt-sm" type="button">Save this day</button>
+                    <p class="field-hint">Each day is saved separately.</p>
                     </div>
                   </div>
                   </div>
@@ -386,7 +410,7 @@
                     rows="3"
                     placeholder="Only {days} days and {hours} hours left."
                   ></textarea>
-                  <p class="field-hint">Dynamic Tokens: <code>{days}</code> <code>{hours}</code> <code>{minutes}</code> <code>{seconds}</code></p>
+                  <p class="field-hint">Dynamic Tokens: <code>{days}</code> <code>{hours}</code> — use either or both. With only <code>{hours}</code>, the total hours left is shown.</p>
 
                   <label class="field-label mt-sm" for="countdown-daily-time">Daily Publish Time (Sri Lanka)</label>
                   <input id="countdown-daily-time" class="field-input field-input--sm" type="time" value="09:00" />
@@ -414,6 +438,7 @@
                   <div class="countdown-preview" id="countdown-preview" aria-label="Countdown message preview">
                     <span class="preview-label">MESSAGE PREVIEW</span>
                     <p class="preview-recipient">WhatsApp · All target groups</p>
+                    <p id="countdown-preview-source" class="preview-source"></p>
                     <div id="countdown-preview-media" class="media-preview hidden"></div>
                     <span id="countdown-preview-text" class="preview-text">Your countdown message will appear here.</span>
                     <span class="preview-footnote">Poster + caption, delivered together.</span>
@@ -728,8 +753,7 @@
       </div>
     </form>
   </dialog>
-  <!-- Socket.IO client library -->
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="app.js"></script>
+  <!-- Sign-in gate: loads the Socket.IO client and app.js once authenticated -->
+  <script src="login.js"></script>
 </body>
 </html>

@@ -176,12 +176,16 @@ recipient selected in the message form.
 - Attach a poster to include it in the preview and the same message as the countdown caption
 - **Broadcast Countdown Now** uses the current form, including a newly selected poster
 - Customize the message template with tokens:
-  - `{days}` `{hours}` `{minutes}` `{seconds}`
+  - `{days}` `{hours}` — use either or both. With only `{hours}` (no `{days}`), it shows the total hours left, e.g. `Only {hours} hours left.` → "Only 77 hours left."
 - Choose a daily publish time in Sri Lanka time. Saving or enabling after today's time schedules the first broadcast for the next eligible day.
 - After saving a countdown's start and target dates, optionally save a different title, message, or poster for any date in the range. Blank fields use the main countdown content.
 - Existing countdowns must be saved with a daily publish time before automatic broadcasting resumes.
 - Preview the resolved message before saving
 - Auto-disables when the target date is reached
+
+### Dashboard sign-in
+
+The dashboard asks for a username and password before it loads. The credentials are read from the `DASHBOARD_USERNAME` and `DASHBOARD_PASSWORD` environment variables: put them in `.env` (copied from `.env.example`; it is not committed). With Docker, the same `.env` file next to `docker-compose.yml` passes them to the container. If either is missing, sign-in is refused. The session ends after 5 minutes without activity in the dashboard (mouse, keyboard, touch or scrolling), after which the username and password must be entered again. Scheduled countdowns, posts and bot commands keep running while signed out. The session token is stored in the browser and renewed while you are active; all `/api` requests and the live Socket.IO connection require it. Changing the credentials invalidates every existing token. Use **Sign out** in the header to end the session (this is separate from **Log Out**, which unlinks WhatsApp).
 
 ### Optional approval for changes
 
